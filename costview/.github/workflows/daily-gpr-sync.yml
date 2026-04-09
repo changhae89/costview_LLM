@@ -1,0 +1,35 @@
+name: Daily GPR Sync
+
+# 언제 실행할지 정합니다.
+on:
+  schedule:
+    # 한국 시간 기준 매일 오전 9시 (UTC 00:00)
+    - cron: '0 0 * * *'
+  # GitHub 사이트에서 버튼을 눌러 수동으로 실행할 수 있게 합니다.
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. GitHub 서버로 내 코드를 가져옵니다.
+      - uses: actions/checkout@v3
+
+      # 2. 실행에 필요한 Node.js 환경을 세팅합니다.
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+
+      # 3. 라이브러리(axios, supabase-js 등)를 설치합니다.
+      - name: Install dependencies
+        run: npm install
+
+      # 4. 일일 데이터 수집 코드를 실행합니다.
+      - name: Run Fetch Script
+        run: node src/fetch-gpr-daily.js
+        env:
+          # 위 1단계에서 저장한 Secrets를 환경 변수로 연결합니다.
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
