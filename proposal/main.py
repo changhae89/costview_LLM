@@ -1,26 +1,25 @@
-"""Scheduled ingestion entrypoint for proposal data collection."""
+"""Scheduled news-ingestion entrypoint for proposal data collection."""
 
 from __future__ import annotations
 
 import asyncio
 import sys
+from pathlib import Path
+
+if __package__ in (None, ""):
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from proposal.collectors.exa_collector import fetch_news
-from proposal.collectors.indicator_collector import fetch_all_indicators
 from proposal.common.supabase_client import create_sb, is_supabase_configured
 from proposal.config import load_environment
 from proposal.db.connection import get_connection
 from proposal.db.fetch import fetch_consumer_keywords
-from proposal.db.supabase_store import (
-    fetch_consumer_keywords_sb,
-    upsert_indicators_sb,
-    upsert_news_sb,
-)
-from proposal.db.upsert import upsert_indicators, upsert_news
+from proposal.db.supabase_store import fetch_consumer_keywords_sb, upsert_news_sb
+from proposal.db.upsert import upsert_news
 
 
 async def main() -> None:
-    """Collect indicators and news, then persist them to the configured data store."""
+    """Collect news and persist it to the configured data store."""
     load_environment()
     print("[proposal] Start")
 
@@ -28,11 +27,6 @@ async def main() -> None:
         if is_supabase_configured():
             supabase = create_sb()
             print("[proposal] DB: Supabase")
-            print("[proposal] 경제 지표 수집 중...")
-            indicators = await fetch_all_indicators()
-            upsert_indicators_sb(supabase, indicators)
-            print(f"[proposal] Saved {len(indicators)} indicators")
-
             print("[proposal] 뉴스 수집 중...")
             keyword_queries = fetch_consumer_keywords_sb(
                 supabase,
@@ -51,11 +45,6 @@ async def main() -> None:
             connection = get_connection()
             try:
                 print("[proposal] DB: Postgres")
-                print("[proposal] 경제 지표 수집 중...")
-                indicators = await fetch_all_indicators()
-                upsert_indicators(connection, indicators)
-                print(f"[proposal] Saved {len(indicators)} indicators")
-
                 print("[proposal] 뉴스 수집 중...")
                 keyword_queries = fetch_consumer_keywords(
                     connection,

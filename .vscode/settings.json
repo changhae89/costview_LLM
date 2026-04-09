@@ -1,0 +1,13 @@
+{
+  "python.defaultInterpreterPath": "C:\\Users\\chang\\anaconda3\\envs\\nlp_env\\python.exe",
+  "code-runner.runInTerminal": true,
+  "code-runner.ignoreSelection": true,
+  "code-runner.executorMap": {
+    "python": "C:\\Users\\chang\\anaconda3\\envs\\nlp_env\\python.exe"
+  },
+  "code-runner.executorMapByGlob": {
+    "proposal/main.py": "cd /d c:\\Users\\chang\\costview_LLM && C:\\Users\\chang\\anaconda3\\envs\\nlp_env\\python.exe -m proposal.main",
+    "prd/main.py": "cd /d c:\\Users\\chang\\costview_LLM && C:\\Users\\chang\\anaconda3\\envs\\nlp_env\\python.exe -m prd.main"
+  },
+  "python.terminal.executeInFileDir": false
+}
