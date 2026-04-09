@@ -1,0 +1,34 @@
+{
+  "chain_id": "CHN_RUA_001",
+  "category": "식품",
+  "event_name": "러시아-우크라이나 전쟁",
+  "raw_material": "국제 소맥(밀)",
+  "consumer_good": "국내 빵/면류",
+  "risk_assessment": {
+    "level": 5,
+    "badge_label": "곡물 공급망 붕괴 위험",
+    "gpr_context": "러시아의 흑해 항구 전면 봉쇄로 우크라이나발 곡물 수출이 마비되며 국제 밀 가격이 14년 만에 최고치를 경신, GPR 지수가 280으로 폭등해 심각 단계에 진입했다."
+  },
+  "timing_forecast": {
+    "lag_months": 4,
+    "warning_message": "전쟁 발발(2022년 2월) 기준 4개월 후인 2022년 6월부터 국내 빵·면류 가격 인상이 본격적으로 체감되기 시작합니다."
+  },
+  "tangible_impact": {
+    "consumer_price_change_pct": 11.4,
+    "real_world_example": "식빵 1봉지 2,000원 기준 → 약 2,228원으로 상승 → 약 228원 증가"
+  },
+  "substitute_recommendations": [
+    {
+      "item": "국산 쌀(백미/현미)",
+      "reason": "국내 생산 기반이 탄탄해 밀 수입 가격 급등의 영향을 거의 받지 않으며, 밥·죽·떡 등 다양한 형태로 빵·면류를 대체할 수 있습니다."
+    },
+    {
+      "item": "국산 감자",
+      "reason": "국내 재배 비중이 높아 국제 곡물가 변동에 민감하지 않고, 삶거나 쪄서 탄수화물 공급원으로 활용하기 쉬워 밀 기반 식품의 현실적인 대체재입니다."
+    }
+  ],
+  "storytelling": {
+    "headline": "전쟁이 밥상을 흔든다",
+    "description": "러시아의 흑해 봉쇄로 국제 밀값이 폭등하고, 4개월 후 한국 소비자의 빵·면류 가격이 연쇄 상승한다."
+  }
+}
