@@ -10,7 +10,7 @@ def fetch_pending_news_sb(sb: Any, limit: int = 20) -> list[dict]:
     candidate_limit = max(limit * 5, 100)
     response = (
         sb.table("raw_news")
-        .select("id,news_url,title,content,origin_published_at,created_at")
+        .select("id,news_url,title,content,origin_published_at,created_at,keyword")
         .or_("is_deleted.is.null,is_deleted.eq.false")
         .order("created_at")
         .limit(candidate_limit)
@@ -41,9 +41,75 @@ def fetch_pending_news_sb(sb: Any, limit: int = 20) -> list[dict]:
             "content": row.get("content"),
             "published_at": row.get("origin_published_at"),
             "created_at": row.get("created_at"),
+            "keyword": row.get("keyword") or [],
         }
         for row in pending_rows[:limit]
     ]
+
+
+def fetch_active_cost_categories_sb(sb: Any) -> list[str]:
+    """Fetch active cost category codes ordered for prompt usage."""
+    rows = (
+        sb.table("cost_categories")
+        .select("code")
+        .eq("is_active", True)
+        .order("sort_order")
+        .execute()
+    ).data or []
+    return [str(row["code"]).strip() for row in rows if str(row.get("code", "")).strip()]
+
+
+def fetch_analysis_history_sb(
+    sb: Any,
+    *,
+    current_news_id: str,
+    keywords: list[str] | None,
+    published_at: str | None,
+    limit: int = 5,
+) -> list[dict]:
+    """Fetch analyzed historical context using news_analyses + causal_chains."""
+    safe_keywords = [str(item).strip() for item in (keywords or []) if str(item).strip()]
+    candidate_limit = max(limit * 5, 20)
+    rows = (
+        sb.table("raw_news")
+        .select(
+            "id,title,origin_published_at,keyword,"
+            "news_analyses(id,summary,reliability,related_indicators,"
+            "causal_chains(category,direction,magnitude,change_pct_min,change_pct_max,monthly_impact))"
+        )
+        .neq("id", current_news_id)
+        .or_("is_deleted.is.null,is_deleted.eq.false")
+        .order("origin_published_at", desc=True)
+        .limit(candidate_limit)
+        .execute()
+    ).data or []
+
+    out: list[dict] = []
+    for row in rows:
+        row_keywords = [str(item).strip() for item in (row.get("keyword") or []) if str(item).strip()]
+        if safe_keywords and not set(row_keywords).intersection(safe_keywords):
+            continue
+        if published_at and row.get("origin_published_at") and row["origin_published_at"] > published_at:
+            continue
+        analyses = row.get("news_analyses") or []
+        if not analyses:
+            continue
+        analysis = analyses[0]
+        out.append(
+            {
+                "raw_news_id": row["id"],
+                "title": row.get("title"),
+                "published_at": row.get("origin_published_at"),
+                "analysis_id": analysis.get("id"),
+                "summary": analysis.get("summary", ""),
+                "reliability": float(analysis.get("reliability") or 0),
+                "related_indicators": analysis.get("related_indicators") or [],
+                "effects": analysis.get("causal_chains") or [],
+            }
+        )
+        if len(out) >= limit:
+            break
+    return out
 
 
 def save_analysis_result_sb(sb: Any, raw_news_id: str, result: dict) -> None:
@@ -124,4 +190,3 @@ def _update_raw_news_status_sb(
         sb.table("raw_news").update(payload).eq("id", raw_news_id).execute()
     except Exception:
         pass
-

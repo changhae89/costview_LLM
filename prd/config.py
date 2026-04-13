@@ -50,8 +50,13 @@ def get_gemini_api_key() -> str:
 
 
 def get_gemini_model() -> str:
-    """Return the configured Gemini model id."""
+    """Return the configured Gemini model id (main model for full analysis)."""
     return (os.environ.get("GEMINI_MODEL") or "gemini-2.5-flash").strip()
+
+
+def get_gemini_flash_model() -> str:
+    """Return the flash model id used for lightweight pre-classify calls."""
+    return (os.environ.get("GEMINI_FLASH_MODEL") or "gemini-2.5-flash").strip()
 
 
 def get_max_batch() -> int:
