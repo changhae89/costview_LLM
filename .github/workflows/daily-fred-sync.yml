@@ -1,0 +1,31 @@
+name: Daily FRED Macro Sync
+
+on:
+  schedule:
+    - cron: '0 1 * * *'  # 한국 시간 매일 오전 10시에 FRED 뉴스 갱신
+  workflow_dispatch:      # 수동 실행 버튼
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install requests
+
+      - name: Run Fetch Script (FRED data to Supabase)
+        run: python src/data_mining/fetch_fred_data.py
+        env:
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}

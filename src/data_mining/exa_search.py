@@ -1,4 +1,11 @@
 import os
+import sys
+try:
+    sys.stdout.reconfigure(encoding='utf-8')
+    sys.stderr.reconfigure(encoding='utf-8')
+except AttributeError:
+    pass
+
 from dotenv import load_dotenv
 from exa_py import Exa
 from typing import List, Dict, Any
@@ -28,7 +35,6 @@ def fetch_economic_news(semantic_query: str, num_results: int = 5) -> List[Dict[
         response = exa_client.search_and_contents(
             query=semantic_query,
             num_results=num_results,
-            use_autoprompt=True, # Exa 내부적으로 쿼리를 최적화
             text={"max_characters": 2000}, # 본문 내용 추출 한도
             highlights={"num_sentences": 5} # 핵심 문장 요약본 (노이즈 필터링 보조용 REQ-04)
         )

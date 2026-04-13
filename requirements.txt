@@ -3,3 +3,4 @@ langchain-openai>=0.0.8
 langgraph>=0.0.26
 exa-py>=1.0.7
 python-dotenv>=1.0.1
+supabase>=2.3.0

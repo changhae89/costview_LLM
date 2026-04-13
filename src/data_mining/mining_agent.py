@@ -32,7 +32,6 @@ def gather_cross_verified_news(query: str) -> str:
         results = exa_client.search_and_contents(
             query=query,
             num_results=5,
-            use_autoprompt=True,
             text={"max_characters": 1500},
             highlights={"num_sentences": 4}
         )
