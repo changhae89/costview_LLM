@@ -1,11 +1,11 @@
-from prd.llm.chains.news_analysis_chain import (
-    _is_retryable_error,
-    build_history_context,
-    get_allowed_categories,
+from prd.llm.chains.causal_normalizer import (
     normalize_causal,
     parse_causal_json,
     validate_causal_result,
 )
+from prd.llm.chains.category_registry import get_allowed_categories
+from prd.llm.chains.history_builder import build_history_context
+from prd.llm.chains.llm_runner import _is_retryable_error
 
 
 def test_parse_causal_json_extracts_object_from_code_fence() -> None:
@@ -113,8 +113,9 @@ def test_build_history_context_formats_history_items() -> None:
 
 def test_get_allowed_categories_has_cost_category_codes() -> None:
     categories = get_allowed_categories()
-    assert "oil" in categories
-    assert "shipping" in categories
+    codes = {c["code"] for c in categories}
+    assert "oil" in codes
+    assert "shipping" in codes
 
 
 def test_validate_causal_result_rejects_empty_event_and_mechanism() -> None:

@@ -61,7 +61,7 @@ def get_gemini_flash_model() -> str:
 
 def get_max_batch() -> int:
     """Return the configured PRD batch size."""
-    raw = (os.environ.get("PRD_MAX_BATCH") or "1").strip()
+    raw = (os.environ.get("PRD_MAX_BATCH") or "100").strip()
     try:
         return max(1, int(raw))
     except ValueError:

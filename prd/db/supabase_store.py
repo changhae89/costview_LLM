@@ -5,18 +5,20 @@ from __future__ import annotations
 from typing import Any
 
 
-def fetch_pending_news_sb(sb: Any, limit: int = 20) -> list[dict]:
-    """Fetch undeleted raw news rows without an analysis record."""
-    candidate_limit = max(limit * 5, 100)
+def fetch_pending_news_sb(sb: Any, *, limit: int = 10) -> list[dict]:
+    """Fetch unprocessed raw news rows up to limit (no processing flag, not deleted, not failed 3+ times)."""
     response = (
         sb.table("raw_news")
-        .select("id,news_url,title,content,origin_published_at,created_at,keyword")
+        .select("id,news_url,title,content,origin_published_at,created_at,keyword,processing_status,retry_count")
         .or_("is_deleted.is.null,is_deleted.eq.false")
         .order("created_at")
-        .limit(candidate_limit)
         .execute()
     )
-    rows = response.data or []
+    rows = [
+        row for row in (response.data or [])
+        if row.get("processing_status") != "processing"
+        and (row.get("retry_count") or 0) < 3
+    ]
     if not rows:
         return []
 
@@ -47,16 +49,16 @@ def fetch_pending_news_sb(sb: Any, limit: int = 20) -> list[dict]:
     ]
 
 
-def fetch_active_cost_categories_sb(sb: Any) -> list[str]:
-    """Fetch active cost category codes ordered for prompt usage."""
+def fetch_active_cost_categories_sb(sb: Any) -> list[dict]:
+    """Fetch active cost categories with labels and keywords for prompt usage."""
     rows = (
         sb.table("cost_categories")
-        .select("code")
+        .select("code, name_ko, keywords")
         .eq("is_active", True)
         .order("sort_order")
         .execute()
     ).data or []
-    return [str(row["code"]).strip() for row in rows if str(row.get("code", "")).strip()]
+    return [row for row in rows if str(row.get("code", "")).strip()]
 
 
 def fetch_analysis_history_sb(
@@ -151,42 +153,34 @@ def save_analysis_result_sb(sb: Any, raw_news_id: str, result: dict) -> None:
         raise
 
 
+def mark_as_processing_sb(sb: Any, raw_news_id: str) -> None:
+    """Mark a raw news row as in-progress before LLM analysis."""
+    sb.table("raw_news").update({
+        "processing_status": "processing",
+    }).eq("id", raw_news_id).execute()
+
+
 def mark_as_processed_sb(sb: Any, raw_news_id: str) -> None:
-    """Best-effort status update for processed rows."""
-    _update_raw_news_status_sb(
-        sb,
-        raw_news_id=raw_news_id,
-        status="processed",
-        error_message=None,
-    )
+    """Mark a raw news row as successfully processed."""
+    sb.table("raw_news").update({
+        "processing_status": "processed",
+        "processing_error": None,
+        "processed_at": "now()",
+    }).eq("id", raw_news_id).execute()
 
 
 def mark_as_failed_sb(sb: Any, raw_news_id: str, error_msg: str) -> None:
-    """Best-effort status update for failed rows."""
-    _update_raw_news_status_sb(
-        sb,
-        raw_news_id=raw_news_id,
-        status="failed",
-        error_message=error_msg[:1000],
-    )
-
-
-def _update_raw_news_status_sb(
-    sb: Any,
-    *,
-    raw_news_id: str,
-    status: str,
-    error_message: str | None,
-) -> None:
-    """Attempt to update status columns, but tolerate schemas that do not define them."""
-    payload = {
-        "processing_status": status,
-        "processing_error": error_message,
-    }
-    if status == "processed":
-        payload["processed_at"] = "now()"
-
-    try:
-        sb.table("raw_news").update(payload).eq("id", raw_news_id).execute()
-    except Exception:
-        pass
+    """Mark a raw news row as failed and increment retry_count."""
+    current = (
+        sb.table("raw_news")
+        .select("retry_count")
+        .eq("id", raw_news_id)
+        .single()
+        .execute()
+    ).data or {}
+    retry_count = (current.get("retry_count") or 0) + 1
+    sb.table("raw_news").update({
+        "processing_status": "failed",
+        "processing_error": error_msg[:1000],
+        "retry_count": retry_count,
+    }).eq("id", raw_news_id).execute()
