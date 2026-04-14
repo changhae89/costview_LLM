@@ -3,31 +3,22 @@ from textwrap import dedent
 from langchain_core.prompts import ChatPromptTemplate
 
 
-CATEGORY_LABELS = {
-    "oil": "기름값 (원유/유가)",
-    "fuel": "주유비 (휘발유/경유)",
-    "gas": "가스비 (난방/조리)",
-    "energy": "전기세 (전기/에너지)",
-    "food": "장바구니 (식료품)",
-    "wheat": "쌀·밀가루 (곡물/농산물)",
-    "commodity": "생활용품 (원자재/잡화)",
-    "price": "물가 (소비자물가)",
-    "cost": "생활비 (가계지출)",
-    "inflation": "물가상승 (인플레이션)",
-    "shipping": "택배·운송비 (물류/운송)",
-}
+def _build_category_block(categories: list[dict]) -> str:
+    items = categories or [{"code": "fuel", "name_ko": "주유비", "keywords": ["gasoline", "diesel"]}]
+    result = []
+    for cat in items:
+        code = cat["code"]
+        name_ko = cat["name_ko"]
+        kws = cat.get("keywords") or []
+        kw_str = ", ".join(kws[:2]) if kws else ""
+        label = f"{name_ko} ({kw_str})" if kw_str else name_ko
+        result.append(f"- {code}: {label}")
+    return "\n".join(result)
 
 
-def _build_category_block(categories: list[str]) -> str:
-    ordered_categories = categories or ["fuel"]
-    return "\n".join(
-        f"- {code}: {CATEGORY_LABELS.get(code, code)}" for code in ordered_categories
-    )
-
-
-def _build_category_text(categories: list[str]) -> str:
-    ordered_categories = categories or ["fuel"]
-    return " | ".join(ordered_categories)
+def _build_category_text(categories: list[dict]) -> str:
+    codes = [cat["code"] for cat in categories] if categories else ["fuel"]
+    return " | ".join(codes)
 
 
 def _build_example_json() -> str:
@@ -44,7 +35,7 @@ def _build_example_json() -> str:
     )
 
 
-def build_causal_prompt(categories: list[str]) -> ChatPromptTemplate:
+def build_causal_prompt(categories: list[dict]) -> ChatPromptTemplate:
     category_block = _build_category_block(categories)
     category_text = _build_category_text(categories)
     example_json = _build_example_json()

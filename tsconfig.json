@@ -14,10 +14,10 @@
     "jsx": "react-jsx",
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["prd/src/*"]
     },
     "types": ["vitest/globals"]
   },
-  "include": ["src", "vitest.config.ts"],
+  "include": ["prd/src", "vitest.config.ts"],
   "exclude": ["node_modules"]
 }

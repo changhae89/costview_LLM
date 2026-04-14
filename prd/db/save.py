@@ -54,46 +54,45 @@ def save_analysis_result(connection, raw_news_id: str, result: dict) -> None:
         raise
 
 
-def mark_as_processed(connection, raw_news_id: str) -> None:
-    """Mark a raw news row as successfully processed when status columns are available."""
-    _update_raw_news_status(
-        connection,
-        raw_news_id=raw_news_id,
-        status="processed",
-        error_message=None,
-    )
-
-
-def mark_as_failed(connection, raw_news_id: str, error_msg: str) -> None:
-    """Mark a raw news row as failed when status columns are available."""
-    _update_raw_news_status(
-        connection,
-        raw_news_id=raw_news_id,
-        status="failed",
-        error_message=error_msg[:1000],
-    )
-
-
-def _update_raw_news_status(
-    connection,
-    *,
-    raw_news_id: str,
-    status: str,
-    error_message: str | None,
-) -> None:
-    """Best-effort status update that becomes a no-op when the schema lacks status columns."""
+def mark_as_processing(connection, raw_news_id: str) -> None:
+    """Mark a raw news row as in-progress before LLM analysis."""
     sql = """
         UPDATE raw_news
-        SET processing_status = %s,
-            processing_error = %s,
-            processed_at = CASE WHEN %s = 'processed' THEN NOW() ELSE processed_at END,
+        SET processing_status = 'processing',
             updated_at = NOW()
         WHERE id = %s;
     """
-    try:
-        with connection.cursor() as cursor:
-            cursor.execute(sql, (status, error_message, status, raw_news_id))
-        connection.commit()
-    except Exception:
-        connection.rollback()
+    with connection.cursor() as cursor:
+        cursor.execute(sql, (raw_news_id,))
+    connection.commit()
+
+
+def mark_as_processed(connection, raw_news_id: str) -> None:
+    """Mark a raw news row as successfully processed."""
+    sql = """
+        UPDATE raw_news
+        SET processing_status = 'processed',
+            processing_error  = NULL,
+            processed_at      = NOW(),
+            updated_at        = NOW()
+        WHERE id = %s;
+    """
+    with connection.cursor() as cursor:
+        cursor.execute(sql, (raw_news_id,))
+    connection.commit()
+
+
+def mark_as_failed(connection, raw_news_id: str, error_msg: str) -> None:
+    """Mark a raw news row as failed and increment retry_count."""
+    sql = """
+        UPDATE raw_news
+        SET processing_status = 'failed',
+            processing_error  = %s,
+            retry_count       = COALESCE(retry_count, 0) + 1,
+            updated_at        = NOW()
+        WHERE id = %s;
+    """
+    with connection.cursor() as cursor:
+        cursor.execute(sql, (error_msg[:1000], raw_news_id))
+    connection.commit()
 

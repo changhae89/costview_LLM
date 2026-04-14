@@ -5,8 +5,8 @@ from __future__ import annotations
 import psycopg2.extras
 
 
-def fetch_pending_news(connection, limit: int = 20) -> list[dict]:
-    """Fetch undeleted raw news rows that do not yet have an analysis record."""
+def fetch_pending_news(connection, *, limit: int = 10) -> list[dict]:
+    """Fetch unprocessed raw news rows up to limit (no processing flag, not deleted, not failed 3+ times)."""
     sql = """
         SELECT rn.id,
                rn.news_url AS url,
@@ -19,6 +19,8 @@ def fetch_pending_news(connection, limit: int = 20) -> list[dict]:
         FROM raw_news rn
         WHERE NOT EXISTS (SELECT 1 FROM news_analyses na WHERE na.raw_news_id = rn.id)
           AND COALESCE(rn.is_deleted, false) = false
+          AND COALESCE(rn.processing_status, 'pending') != 'processing'
+          AND COALESCE(rn.retry_count, 0) < 3
         ORDER BY rn.created_at ASC
         LIMIT %s;
     """
@@ -27,17 +29,17 @@ def fetch_pending_news(connection, limit: int = 20) -> list[dict]:
         return [dict(row) for row in cursor.fetchall()]
 
 
-def fetch_active_cost_categories(connection) -> list[str]:
-    """Fetch active cost category codes ordered for prompt usage."""
+def fetch_active_cost_categories(connection) -> list[dict]:
+    """Fetch active cost categories with labels and keywords for prompt usage."""
     sql = """
-        SELECT code
+        SELECT code, name_ko, keywords
         FROM cost_categories
         WHERE is_active = true
         ORDER BY sort_order ASC, code ASC;
     """
-    with connection.cursor() as cursor:
+    with connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cursor:
         cursor.execute(sql)
-        return [str(row[0]).strip() for row in cursor.fetchall() if str(row[0]).strip()]
+        return [dict(row) for row in cursor.fetchall() if str(row.get("code", "")).strip()]
 
 
 def fetch_analysis_history(

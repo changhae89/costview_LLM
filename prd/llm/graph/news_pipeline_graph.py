@@ -4,16 +4,16 @@ from typing import Any, TypedDict
 
 from langgraph.graph import END, START, StateGraph
 
-from prd.db.fetch import fetch_analysis_history
-from prd.db.supabase_store import fetch_analysis_history_sb
-from prd.llm.chains.news_analysis_chain import (
-    build_history_context,
+from prd.llm.chains.causal_normalizer import (
     normalize_causal,
     parse_causal_json,
+    validate_causal_result,
+)
+from prd.llm.chains.history_builder import build_history_context
+from prd.llm.chains.llm_runner import (
     run_causal_chain,
     run_repair_chain,
     run_summary_chain,
-    validate_causal_result,
 )
 
 MAX_REPAIR_ATTEMPTS = 2
@@ -64,17 +64,9 @@ async def summarize_node(state: NewsState) -> NewsState:
 
 def build_history_context_node(state: NewsState) -> NewsState:
     news = state["news"]
-    if news.get("_history_backend") == "supabase":
-        history_items = fetch_analysis_history_sb(
-            news["_sb"],
-            current_news_id=news["id"],
-            keywords=news.get("keyword") or [],
-            published_at=news.get("published_at"),
-            limit=5,
-        )
-    elif news.get("_history_backend") == "postgres":
-        history_items = fetch_analysis_history(
-            news["_conn"],
+    repo = news.get("_repo")
+    if repo is not None:
+        history_items = repo.fetch_analysis_history(
             current_news_id=news["id"],
             keywords=news.get("keyword") or [],
             published_at=news.get("published_at"),
