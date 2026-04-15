@@ -1,8 +1,10 @@
 .env
 .env.local
 proposal/.env
+validation/.env
 .review/
 .venv/
 node_modules/
+temp/
 __pycache__/
 *.py[cod]
