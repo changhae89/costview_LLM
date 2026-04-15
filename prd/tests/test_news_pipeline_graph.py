@@ -8,7 +8,7 @@ async def test_analyze_news_repairs_invalid_json(monkeypatch) -> None:
     async def fake_summary(_: str) -> str:
         return "요약 첫 문장. 요약 두 번째 문장. 요약 세 번째 문장."
 
-    async def fake_causal(_: str, __: str = "없음", categories=None) -> str:
+    async def fake_causal(_: str, __: str = "없음", categories=None, indicator_context: str = "데이터 없음") -> str:
         return "not-json"
 
     async def fake_repair(_: str, __: str) -> str:
@@ -56,7 +56,7 @@ async def test_analyze_news_fails_after_max_repairs(monkeypatch) -> None:
     async def fake_summary(_: str) -> str:
         return "요약 첫 문장. 요약 두 번째 문장. 요약 세 번째 문장."
 
-    async def fake_causal(_: str, __: str = "없음", categories=None) -> str:
+    async def fake_causal(_: str, __: str = "없음", categories=None, indicator_context: str = "데이터 없음") -> str:
         return "not-json"
 
     async def fake_repair(_: str, __: str) -> str:
@@ -86,7 +86,7 @@ async def test_analyze_news_retries_when_zero_neutral_only_output(monkeypatch) -
     async def fake_summary(_: str) -> str:
         return "요약 첫 문장. 요약 두 번째 문장. 요약 세 번째 문장."
 
-    async def fake_causal(_: str, __: str = "없음", categories=None) -> str:
+    async def fake_causal(_: str, __: str = "없음", categories=None, indicator_context: str = "데이터 없음") -> str:
         return """
         {
           "event": "",

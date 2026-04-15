@@ -6,8 +6,12 @@ from __future__ import annotations
 def save_analysis_result(connection, raw_news_id: str, result: dict) -> None:
     """Insert one analysis row and its causal effect rows in a single transaction."""
     sql_analysis = """
-        INSERT INTO news_analyses (raw_news_id, summary, reliability, related_indicators)
-        VALUES (%s, %s, %s, %s)
+        INSERT INTO news_analyses (
+            raw_news_id, summary, reliability, related_indicators,
+            reliability_reason, time_horizon, effect_chain,
+            buffer, leading_indicator, geo_scope
+        )
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         RETURNING id;
     """
     sql_causal = """
@@ -20,13 +24,21 @@ def save_analysis_result(connection, raw_news_id: str, result: dict) -> None:
 
     try:
         with connection.cursor() as cursor:
+            import json as _json
+            effect_chain = result.get("effect_chain") or []
             cursor.execute(
                 sql_analysis,
                 (
                     raw_news_id,
                     result.get("summary", ""),
                     float(result.get("reliability", 0.85)),
-                    result.get("related_indicators", []),
+                    result.get("related_indicators") or [],
+                    result.get("reliability_reason") or "",
+                    result.get("time_horizon"),
+                    _json.dumps(effect_chain, ensure_ascii=False),
+                    result.get("buffer") or "",
+                    result.get("leading_indicator"),
+                    result.get("geo_scope"),
                 ),
             )
             analysis_id = cursor.fetchone()[0]
@@ -72,6 +84,21 @@ def mark_as_processed(connection, raw_news_id: str) -> None:
     sql = """
         UPDATE raw_news
         SET processing_status = 'processed',
+            processing_error  = NULL,
+            processed_at      = NOW(),
+            updated_at        = NOW()
+        WHERE id = %s;
+    """
+    with connection.cursor() as cursor:
+        cursor.execute(sql, (raw_news_id,))
+    connection.commit()
+
+
+def mark_as_skipped(connection, raw_news_id: str) -> None:
+    """Mark a raw news row as skipped (LLM returned empty effects)."""
+    sql = """
+        UPDATE raw_news
+        SET processing_status = 'skipped',
             processing_error  = NULL,
             processed_at      = NOW(),
             updated_at        = NOW()

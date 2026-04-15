@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from prd.db.fetch import fetch_active_cost_categories, fetch_analysis_history, fetch_pending_news
-from prd.db.save import mark_as_failed, mark_as_processed, mark_as_processing, save_analysis_result
+from prd.db.fetch import fetch_active_cost_categories, fetch_analysis_history, fetch_indicators_by_date, fetch_pending_news
+from prd.db.save import mark_as_failed, mark_as_processed, mark_as_processing, mark_as_skipped, save_analysis_result
 
 
 class PostgresRepository:
@@ -32,6 +32,9 @@ class PostgresRepository:
             limit=limit,
         )
 
+    def fetch_indicators_by_date(self, *, reference_date: str) -> dict:
+        return fetch_indicators_by_date(self._conn, reference_date=reference_date)
+
     def save_analysis_result(self, news_id: str, result: dict) -> None:
         save_analysis_result(self._conn, news_id, result)
 
@@ -40,6 +43,9 @@ class PostgresRepository:
 
     def mark_as_processed(self, news_id: str) -> None:
         mark_as_processed(self._conn, news_id)
+
+    def mark_as_skipped(self, news_id: str) -> None:
+        mark_as_skipped(self._conn, news_id)
 
     def mark_as_failed(self, news_id: str, error_msg: str) -> None:
         mark_as_failed(self._conn, news_id, error_msg)

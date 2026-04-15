@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
-from psycopg.rows import dict_row
+from datetime import date as DateType
+
+import psycopg2.extras
 
 
 def fetch_pending_news(connection, *, limit: int = 10) -> list[dict]:
-    """Fetch unprocessed raw news rows up to limit."""
+    """Fetch unprocessed raw news rows up to limit (no processing flag, not deleted, not failed 3+ times)."""
     sql = """
         SELECT rn.id,
                rn.news_url AS url,
@@ -21,10 +23,10 @@ def fetch_pending_news(connection, *, limit: int = 10) -> list[dict]:
           AND COALESCE(rn.is_deleted, false) = false
           AND COALESCE(rn.processing_status, 'pending') != 'processing'
           AND COALESCE(rn.retry_count, 0) < 3
-        ORDER BY rn.created_at ASC
+        ORDER BY rn.origin_published_at ASC
         LIMIT %s;
     """
-    with connection.cursor(row_factory=dict_row) as cursor:
+    with connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cursor:
         cursor.execute(sql, (limit,))
         return [dict(row) for row in cursor.fetchall()]
 
@@ -37,7 +39,7 @@ def fetch_active_cost_categories(connection) -> list[dict]:
         WHERE is_active = true
         ORDER BY sort_order ASC, code ASC;
     """
-    with connection.cursor(row_factory=dict_row) as cursor:
+    with connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cursor:
         cursor.execute(sql)
         return [dict(row) for row in cursor.fetchall() if str(row.get("code", "")).strip()]
 
@@ -50,7 +52,10 @@ def fetch_analysis_history(
     published_at,
     limit: int = 5,
 ) -> list[dict]:
-    """Fetch previously analyzed related news using raw_news keyword overlap."""
+    """
+    Fetch previously analyzed related news using raw_news keyword overlap.
+    Context uses news_analyses + causal_chains instead of raw content.
+    """
     safe_keywords = [str(item).strip() for item in (keywords or []) if str(item).strip()]
     sql = """
         SELECT
@@ -82,7 +87,7 @@ def fetch_analysis_history(
         ORDER BY rn.origin_published_at DESC NULLS LAST, na.created_at DESC
         LIMIT %s;
     """
-    with connection.cursor(row_factory=dict_row) as cursor:
+    with connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cursor:
         cursor.execute(
             sql,
             (
@@ -96,6 +101,91 @@ def fetch_analysis_history(
         )
         rows = [dict(row) for row in cursor.fetchall()]
     return _group_analysis_history(rows)
+
+
+def fetch_indicators_by_date(connection, *, reference_date: str) -> dict:
+    """Fetch 12-month monthly series of economic indicators up to reference_date."""
+
+    def _series(cursor, sql: str, params: tuple) -> list[tuple[str, float]]:
+        cursor.execute(sql, params)
+        return [(row["month"], float(row["value"])) for row in cursor.fetchall()]
+
+    with connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cursor:
+        _series(cursor, """
+            SELECT to_char(date_trunc('month', reference_date), 'YYYY-MM') AS month,
+                   AVG(krw_usd_rate) AS value
+            FROM indicator_ecos_daily_logs
+            WHERE reference_date >= date_trunc('month', %s::date) - INTERVAL '11 months'
+              AND reference_date <= %s::date
+            GROUP BY date_trunc('month', reference_date)
+            ORDER BY month;
+        """, (reference_date, reference_date))
+        krw_usd_rate = [(r["month"], float(r["value"])) for r in cursor.fetchall()]
+
+        _series(cursor, """
+            SELECT to_char(reference_date, 'YYYY-MM') AS month,
+                   import_price_crude_oil AS value
+            FROM indicator_ecos_monthly_logs
+            WHERE reference_date >= date_trunc('month', %s::date) - INTERVAL '11 months'
+              AND reference_date <= date_trunc('month', %s::date)
+              AND import_price_crude_oil IS NOT NULL
+            ORDER BY reference_date;
+        """, (reference_date, reference_date))
+        wti = [(r["month"], float(r["value"])) for r in cursor.fetchall()]
+
+        _series(cursor, """
+            SELECT to_char(reference_date, 'YYYY-MM') AS month,
+                   cpi_total AS value
+            FROM indicator_kosis_monthly_logs
+            WHERE reference_date >= date_trunc('month', %s::date) - INTERVAL '11 months'
+              AND reference_date <= date_trunc('month', %s::date)
+              AND cpi_total IS NOT NULL
+            ORDER BY reference_date;
+        """, (reference_date, reference_date))
+        cpi_total = [(r["month"], float(r["value"])) for r in cursor.fetchall()]
+
+        _series(cursor, """
+            SELECT to_char(reference_date, 'YYYY-MM') AS month,
+                   gpr_original AS value
+            FROM indicator_gpr_monthly_logs
+            WHERE reference_date >= date_trunc('month', %s::date) - INTERVAL '11 months'
+              AND reference_date <= date_trunc('month', %s::date)
+              AND gpr_original IS NOT NULL
+            ORDER BY reference_date;
+        """, (reference_date, reference_date))
+        gpr = [(r["month"], float(r["value"])) for r in cursor.fetchall()]
+
+        _series(cursor, """
+            SELECT to_char(date_trunc('month', reference_date), 'YYYY-MM') AS month,
+                   AVG(fred_wti) AS value
+            FROM indicator_fred_daily_logs
+            WHERE reference_date >= date_trunc('month', %s::date) - INTERVAL '11 months'
+              AND reference_date <= %s::date
+              AND fred_wti IS NOT NULL
+            GROUP BY date_trunc('month', reference_date)
+            ORDER BY month;
+        """, (reference_date, reference_date))
+        fred_wti = [(r["month"], float(r["value"])) for r in cursor.fetchall()]
+
+        _series(cursor, """
+            SELECT reference_month AS month, fred_cpi AS value
+            FROM indicator_fred_monthly_logs
+            WHERE reference_month >= to_char(date_trunc('month', %s::date) - INTERVAL '11 months', 'YYYY-MM')
+              AND reference_month <= to_char(date_trunc('month', %s::date), 'YYYY-MM')
+              AND fred_cpi IS NOT NULL
+            ORDER BY reference_month;
+        """, (reference_date, reference_date))
+        fred_cpi = [(r["month"], float(r["value"])) for r in cursor.fetchall()]
+
+    return {
+        "reference_date": reference_date,
+        "krw_usd_rate": krw_usd_rate,
+        "wti": wti,
+        "cpi_total": cpi_total,
+        "gpr": gpr,
+        "fred_wti": fred_wti,
+        "fred_cpi": fred_cpi,
+    }
 
 
 def _group_analysis_history(rows: list[dict]) -> list[dict]:

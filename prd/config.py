@@ -66,3 +66,12 @@ def get_max_batch() -> int:
         return max(1, int(raw))
     except ValueError:
         return 1
+
+
+def get_concurrency() -> int:
+    """Return the configured PRD concurrency (number of news processed in parallel)."""
+    raw = (os.environ.get("PRD_CONCURRENCY") or "1").strip()
+    try:
+        return max(1, int(raw))
+    except ValueError:
+        return 1

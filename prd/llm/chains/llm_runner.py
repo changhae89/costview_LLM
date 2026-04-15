@@ -51,6 +51,12 @@ def _message_text(message: Any) -> str:
     return str(content).strip()
 
 
+def _print_chain_response(label: str, text: str) -> None:
+    print(f"[{label}] --- RESPONSE START ---")
+    print(text)
+    print(f"[{label}] --- RESPONSE END ---")
+
+
 def _print_chain_prompt(label: str, prompt: Any, payload: dict[str, Any]) -> None:
     try:
         messages = prompt.format_messages(**payload)
@@ -102,23 +108,30 @@ async def run_summary_chain(content: str) -> str:
         SUMMARY_PROMPT,
         payload,
         temperature=0.2,
-        max_tokens=768,
+        max_tokens=1536,
     )
     if not text:
         raise ValueError("Summary chain returned an empty response.")
+    _print_chain_response("LLM1", text)
     return text
 
 
-async def run_causal_chain(summary: str, history_context: str = "없음", categories: list[dict] | None = None) -> str:
+async def run_causal_chain(
+    summary: str,
+    history_context: str = "없음",
+    categories: list[dict] | None = None,
+    indicator_context: str = "데이터 없음",
+) -> str:
     allowed_categories = categories or list(get_allowed_categories())
     text = await _invoke_chain(
         build_causal_prompt(allowed_categories),
-        {"summary": summary, "history_context": history_context},
+        {"summary": summary, "history_context": history_context, "indicator_context": indicator_context},
         temperature=0.15,
-        max_tokens=2048,
+        max_tokens=8192,
     )
     if not text:
         raise ValueError("Causal chain returned an empty response.")
+    _print_chain_response("LLM2", text)
     return text
 
 
@@ -127,8 +140,9 @@ async def run_repair_chain(summary: str, causal_raw: str) -> str:
         REPAIR_PROMPT,
         {"summary": summary, "causal_raw": causal_raw[:4000]},
         temperature=0.1,
-        max_tokens=2048,
+        max_tokens=8192,
     )
     if not text:
         raise ValueError("Repair chain returned an empty response.")
+    _print_chain_response("LLM3", text)
     return text

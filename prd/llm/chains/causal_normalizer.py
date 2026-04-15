@@ -15,6 +15,15 @@ from prd.llm.schemas import CausalResult
 ALLOWED_DIRECTIONS = {"up", "down", "neutral"}
 ALLOWED_MAGNITUDES = {"low", "medium", "high"}
 ALLOWED_INDICATORS = {"usd_krw", "wti", "gold", "base_rate"}
+ALLOWED_TIME_HORIZONS = {"short", "medium", "long"}
+ALLOWED_LEADING_INDICATORS = {"leading", "coincident", "lagging"}
+ALLOWED_GEO_SCOPES = {"global", "asia", "korea"}
+
+# 구 LLM/스키마에서 쓰이던 영어 라벨 → 현재 DB 코드
+LEGACY_ENGLISH_CATEGORY_ALIASES: dict[str, str] = {
+    "utility": "energy",
+    "grocery": "food",
+}
 
 
 def parse_causal_json(raw: str) -> dict[str, Any]:
@@ -115,12 +124,26 @@ def normalize_causal(raw_causal: dict[str, Any], categories: list[str] | list[di
     else:
         normalized_indicators = []
 
+    # effect_chain: list[str]
+    raw_chain = out.get("effect_chain")
+    effect_chain = (
+        [str(s).strip() for s in raw_chain if str(s).strip()]
+        if isinstance(raw_chain, list)
+        else []
+    )
+
     normalized = {
         "event": str(out.get("event") or "").strip(),
         "mechanism": str(out.get("mechanism") or "").strip(),
         "related_indicators": normalized_indicators,
         "reliability": _normalize_reliability(out.get("reliability")),
+        "reliability_reason": str(out.get("reliability_reason") or "").strip(),
         "effects": deduped,
+        "time_horizon": _normalize_enum(out.get("time_horizon"), ALLOWED_TIME_HORIZONS),
+        "effect_chain": effect_chain,
+        "buffer": str(out.get("buffer") or "").strip(),
+        "leading_indicator": _normalize_enum(out.get("leading_indicator"), ALLOWED_LEADING_INDICATORS),
+        "geo_scope": _normalize_enum(out.get("geo_scope"), ALLOWED_GEO_SCOPES),
     }
     return CausalResult.model_validate(normalized).model_dump()
 
@@ -138,8 +161,6 @@ def validate_causal_result(causal: dict[str, Any]) -> None:
     if effects and _all_effects_are_zero_neutral(effects):
         raise ValueError("all effects are neutral with zero impact")
 
-    if not effects and float(causal.get("reliability") or 0) > 0.95:
-        raise ValueError("empty effects with implausibly high reliability")
 
 
 def _normalize_category(value: Any, allowed_categories: tuple[str, ...]) -> str | None:
@@ -148,6 +169,9 @@ def _normalize_category(value: Any, allowed_categories: tuple[str, ...]) -> str 
     lowered = str(value).strip().lower()
     if lowered in allowed_categories:
         return lowered
+    legacy_target = LEGACY_ENGLISH_CATEGORY_ALIASES.get(lowered)
+    if legacy_target and legacy_target in allowed_categories:
+        return legacy_target
     raw = str(value).strip()
     # 한국어 fallback (코드 내 고정)
     for token, mapped in CATEGORY_FALLBACK_MAP.items():
@@ -180,6 +204,13 @@ def _normalize_magnitude(value: Any) -> str:
     if lowered in {"large", "strong", "높음", "큼", "강함", "심각"}:
         return "high"
     return "medium"
+
+
+def _normalize_enum(value: Any, allowed: set[str]) -> str | None:
+    if value is None:
+        return None
+    lowered = str(value).strip().lower()
+    return lowered if lowered in allowed else None
 
 
 def _normalize_reliability(value: Any) -> float:
