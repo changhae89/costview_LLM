@@ -1,8 +1,8 @@
 """
-PRD 뉴스 분석 실행 엔트리포인트
-================================
-미처리 raw_news를 Gemini LLM으로 분석하여
-news_analyses + causal_chains 테이블에 저장한다.
+PRD news analysis batch entrypoint.
+
+Fetches pending raw news rows, analyzes them with the PRD pipeline,
+and stores results in `news_analyses` and `causal_chains`.
 """
 
 from __future__ import annotations
@@ -147,10 +147,10 @@ async def main() -> None:
         _log(f"Allowed categories: {allowed_categories}")
 
         pending_news = _fetch_pending(supabase, connection, limit=max_batch)
-        _log(f"Pending: {len(pending_news)}건")
+        _log(f"Pending: {len(pending_news)} items")
 
         if not pending_news:
-            _log("처리할 뉴스 없음. 종료.")
+            _log("No pending news. Done.")
             return
 
         success_count = 0

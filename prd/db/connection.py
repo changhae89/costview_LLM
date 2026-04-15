@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import psycopg2 as psycopg
+import psycopg
 
 from prd.common.supabase_client import is_supabase_configured
 from prd.config import get_database_url

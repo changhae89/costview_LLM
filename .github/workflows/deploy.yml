@@ -1,0 +1,85 @@
+name: Run PRD Batch On EC2
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Build and run PRD batch over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: ${{ secrets.EC2_PORT }}
+
+          # Keep SSH timeouts generous for Ubuntu 24.04 + ssh.socket setups.
+          timeout: 120s
+          command_timeout: 30m
+
+          script: |
+            set -eu
+
+            APP_DIR="$HOME/costview-prd"
+            CONTAINER_NAME="costview-prd-run"
+            IMAGE_NAME="costview-prd:latest"
+            REPO_URL="git@github.com:${{ github.repository }}.git"
+            BRANCH_NAME="main"
+
+            echo "[1/10] Ensure app directory exists"
+            mkdir -p "$APP_DIR"
+
+            echo "[2/10] Verify required runtime files"
+            if [ ! -f "$APP_DIR/.env" ]; then
+              echo "Missing $APP_DIR/.env"
+              exit 1
+            fi
+
+            if [ ! -f "$HOME/.ssh/costview_github_deploy" ]; then
+              echo "Missing GitHub deploy key: $HOME/.ssh/costview_github_deploy"
+              exit 1
+            fi
+
+            echo "[3/10] Sync source code from private repository"
+            if [ -d "$APP_DIR/.git" ]; then
+              git -C "$APP_DIR" fetch origin "$BRANCH_NAME"
+              git -C "$APP_DIR" checkout "$BRANCH_NAME"
+              git -C "$APP_DIR" reset --hard "origin/$BRANCH_NAME"
+            else
+              rm -rf "$APP_DIR"
+              git clone --branch "$BRANCH_NAME" "$REPO_URL" "$APP_DIR"
+            fi
+
+            cd "$APP_DIR"
+
+            echo "[4/10] Show deployed commit"
+            git rev-parse --short HEAD
+
+            echo "[5/10] Remove previous batch container if it exists"
+            if docker ps -a --format '{{.Names}}' | grep -Fxq "$CONTAINER_NAME"; then
+              docker rm -f "$CONTAINER_NAME" || true
+            fi
+
+            echo "[6/10] Remove old image if it exists"
+            docker image rm "$IMAGE_NAME" || true
+
+            echo "[7/10] Build new Docker image"
+            docker build -t "$IMAGE_NAME" -f prd/Dockerfile .
+
+            echo "[8/10] Run PRD batch container"
+            docker run \
+              --name "$CONTAINER_NAME" \
+              --env-file "$APP_DIR/.env" \
+              -e APP_ENV=production \
+              "$IMAGE_NAME"
+
+            echo "[9/10] Print container logs"
+            docker logs "$CONTAINER_NAME"
+
+            echo "[10/10] Show final container status"
+            docker ps -a --filter "name=$CONTAINER_NAME"

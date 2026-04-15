@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import psycopg2.extras
+from psycopg.rows import dict_row
 
 
 def fetch_pending_news(connection, limit: int = 20) -> list[dict]:
@@ -22,7 +22,7 @@ def fetch_pending_news(connection, limit: int = 20) -> list[dict]:
         ORDER BY rn.created_at ASC
         LIMIT %s;
     """
-    with connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cursor:
+    with connection.cursor(row_factory=dict_row) as cursor:
         cursor.execute(sql, (limit,))
         return [dict(row) for row in cursor.fetchall()]
 
@@ -83,7 +83,7 @@ def fetch_analysis_history(
         ORDER BY rn.origin_published_at DESC NULLS LAST, na.created_at DESC
         LIMIT %s;
     """
-    with connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cursor:
+    with connection.cursor(row_factory=dict_row) as cursor:
         cursor.execute(
             sql,
             (
