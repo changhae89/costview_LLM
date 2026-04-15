@@ -16,19 +16,9 @@ from pathlib import Path
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from prd.common.supabase_client import create_sb, is_supabase_configured
 from prd.config import get_max_batch, load_environment
-from prd.db.connection import get_connection
-from prd.db.fetch import fetch_active_cost_categories, fetch_pending_news
-from prd.db.save import mark_as_failed, mark_as_processed, save_analysis_result
-from prd.db.supabase_store import (
-    fetch_active_cost_categories_sb,
-    fetch_pending_news_sb,
-    mark_as_failed_sb,
-    mark_as_processed_sb,
-    save_analysis_result_sb,
-)
-from prd.llm.gemini_client import analyze_news
+from prd.db.factory import create_repository
+from prd.llm.graph.news_pipeline_graph import analyze_news
 
 
 def _log(message: str) -> None:
@@ -58,63 +48,37 @@ def _print_trace(trace: list[dict] | None) -> None:
         _log(f"| {index} | {node} | llm={llm} | {detail} |")
 
 
-def _fetch_pending(supabase, connection, limit: int) -> list[dict]:
-    if supabase:
-        return fetch_pending_news_sb(supabase, limit=limit)
-    return fetch_pending_news(connection, limit=limit)
-
-
-def _fetch_allowed_categories(supabase, connection) -> list[str]:
-    if supabase:
-        return fetch_active_cost_categories_sb(supabase)
-    return fetch_active_cost_categories(connection)
-
-
-def _save_result(supabase, connection, news_id: str, result: dict) -> None:
-    if supabase:
-        save_analysis_result_sb(supabase, news_id, result)
-        mark_as_processed_sb(supabase, news_id)
-    else:
-        save_analysis_result(connection, news_id, result)
-        mark_as_processed(connection, news_id)
-
-
-def _mark_failed(supabase, connection, news_id: str, error_msg: str) -> None:
-    if supabase:
-        mark_as_failed_sb(supabase, news_id, error_msg)
-    else:
-        mark_as_failed(connection, news_id, error_msg)
-
-
-async def _process_one(news: dict, supabase, connection, allowed_categories: list[str]) -> None:
+async def _process_one(news: dict, repo, allowed_categories: list[dict]) -> None:
     title_preview = (news.get("title") or "")[:45]
     news_id = news["id"]
 
     try:
+        repo.mark_as_processing(news_id)
+
         graph_news = dict(news)
         graph_news["allowed_categories"] = allowed_categories
-        if supabase:
-            graph_news["_history_backend"] = "supabase"
-            graph_news["_sb"] = supabase
-        else:
-            graph_news["_history_backend"] = "postgres"
-            graph_news["_conn"] = connection
+        graph_news["_repo"] = repo
 
         result = await analyze_news(graph_news)
         trace = result.pop("_trace", [])
         _print_trace(trace)
         _log(f"LLM result for news_id={news_id}")
         _safe_print_json(result)
-        _save_result(supabase, connection, news_id, result)
+        repo.save_analysis_result(news_id, result)
+        repo.mark_as_processed(news_id)
         _log(f"processed news_id={news_id} title={title_preview!r}")
     except Exception as error:
-        if connection is not None:
-            connection.rollback()
         try:
-            _mark_failed(supabase, connection, news_id, str(error))
+            repo.rollback()
+        except Exception:
+            pass
+        try:
+            repo.mark_as_failed(news_id, str(error))
         except Exception as mark_error:
-            if connection is not None:
-                connection.rollback()
+            try:
+                repo.rollback()
+            except Exception:
+                pass
             _log(
                 f"failed news_id={news_id} title={title_preview!r} "
                 f"error={error} mark_failed_error={mark_error}"
@@ -131,22 +95,15 @@ async def main() -> None:
     _log("start")
     _log(f"Max batch: {max_batch}")
 
-    use_supabase = is_supabase_configured()
-    connection = None
-    supabase = None
+    repo = create_repository()
+    backend = type(repo).__name__
+    _log(f"DB: {backend}")
 
     try:
-        if use_supabase:
-            supabase = create_sb()
-            _log("DB: Supabase")
-        else:
-            connection = get_connection()
-            _log("DB: PostgreSQL")
+        allowed_categories = repo.fetch_active_cost_categories()
+        _log(f"Allowed categories: {[c['code'] for c in allowed_categories]}")
 
-        allowed_categories = _fetch_allowed_categories(supabase, connection)
-        _log(f"Allowed categories: {allowed_categories}")
-
-        pending_news = _fetch_pending(supabase, connection, limit=max_batch)
+        pending_news = repo.fetch_pending_news(limit=max_batch)
         _log(f"Pending: {len(pending_news)} items")
 
         if not pending_news:
@@ -160,7 +117,7 @@ async def main() -> None:
             started_at = time.perf_counter()
             _log(f"[{index}/{len(pending_news)}] processing...")
             try:
-                await _process_one(news, supabase, connection, allowed_categories)
+                await _process_one(news, repo, allowed_categories)
                 success_count += 1
             except Exception:
                 failed_count += 1
@@ -173,8 +130,7 @@ async def main() -> None:
         _log(f"Fatal error: {error}")
         sys.exit(1)
     finally:
-        if connection is not None:
-            connection.close()
+        repo.close()
 
 
 if __name__ == "__main__":

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import psycopg
 
-from prd.common.supabase_client import is_supabase_configured
+from prd.db.supabase_client import is_supabase_configured
 from prd.config import get_database_url
 
 
@@ -12,7 +12,7 @@ def get_connection():
     """Create a transactional Postgres connection for PRD analysis."""
     if is_supabase_configured():
         raise RuntimeError(
-            "SUPABASE_URL and a Supabase key are configured. Use prd.common.supabase_client instead."
+            "SUPABASE_URL and a Supabase key are configured. Use prd.db.supabase_client instead."
         )
 
     database_url = get_database_url()
