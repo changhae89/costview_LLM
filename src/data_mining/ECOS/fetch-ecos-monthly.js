@@ -6,7 +6,7 @@ require("dotenv").config({ path: path.resolve(__dirname, "../../../.env") });
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
 const ECOS_API_KEY = process.env.ECOS_API_KEY;
 
-async function fetchEcosData(statCode, itemCode1, indicatorName) {
+async function fetchEcosData(statCode, itemCode1, indicatorName, itemCode2 = null) {
   const today = new Date();
   const past = new Date();
   past.setMonth(today.getMonth() - 12);
@@ -20,7 +20,8 @@ async function fetchEcosData(statCode, itemCode1, indicatorName) {
   const startDate = formatEcosDate(past);
   const endDate = formatEcosDate(today);
 
-  const url = `https://ecos.bok.or.kr/api/StatisticSearch/${ECOS_API_KEY}/json/kr/1/100/${statCode}/M/${startDate}/${endDate}/${itemCode1}`;
+  const itemPath = itemCode2 ? `/${itemCode1}/${itemCode2}` : `/${itemCode1}`;
+  const url = `https://ecos.bok.or.kr/api/StatisticSearch/${ECOS_API_KEY}/json/kr/1/100/${statCode}/M/${startDate}/${endDate}${itemPath}`;
 
   try {
     const response = await axios.get(url);
@@ -46,14 +47,19 @@ async function fetchEcosMonthlyLogs() {
   console.log("⏳ ECOS 월간 수입물가 데이터 병합 중...");
 
   const targets = [
-    { stat: "401Y015", item: "201121AA", name: "import_price_crude_oil" },
-    { stat: "401Y015", item: "201122AA", name: "import_price_natural_gas" }
+    { stat: "401Y015", item: "201121AA", item2: "W", name: "import_price_crude_oil" },
+    { stat: "401Y015", item: "201122AA", item2: "W", name: "import_price_natural_gas" },
+    { stat: "401Y015", item: "3011AA", item2: "W", name: "import_price_food" },
+    { stat: "401Y015", item: "20111AA", item2: "W", name: "import_price_coal" },
+    { stat: "404Y014", item: "*AA", name: "ppi_total" },
+    { stat: "404Y015", item: "S110AA", name: "ppi_food" },
+    { stat: "404Y015", item: "S310AA", name: "ppi_energy" }
   ];
 
   // 1. 날짜별 병합
   const dateMap = new Map();
   for (const target of targets) {
-    const records = await fetchEcosData(target.stat, target.item, target.name);
+    const records = await fetchEcosData(target.stat, target.item, target.name, target.item2);
     records.forEach(rec => {
       if (!dateMap.has(rec.reference_date)) {
         dateMap.set(rec.reference_date, {
