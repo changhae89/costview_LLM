@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import date as DateType
 
-import psycopg2.extras
+from psycopg.rows import dict_row
 
 
 def fetch_pending_news(connection, *, limit: int = 10) -> list[dict]:
@@ -26,7 +26,7 @@ def fetch_pending_news(connection, *, limit: int = 10) -> list[dict]:
         ORDER BY rn.origin_published_at ASC
         LIMIT %s;
     """
-    with connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cursor:
+    with connection.cursor(row_factory=dict_row) as cursor:
         cursor.execute(sql, (limit,))
         return [dict(row) for row in cursor.fetchall()]
 
@@ -39,7 +39,7 @@ def fetch_active_cost_categories(connection) -> list[dict]:
         WHERE is_active = true
         ORDER BY sort_order ASC, code ASC;
     """
-    with connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cursor:
+    with connection.cursor(row_factory=dict_row) as cursor:
         cursor.execute(sql)
         return [dict(row) for row in cursor.fetchall() if str(row.get("code", "")).strip()]
 
@@ -87,7 +87,7 @@ def fetch_analysis_history(
         ORDER BY rn.origin_published_at DESC NULLS LAST, na.created_at DESC
         LIMIT %s;
     """
-    with connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cursor:
+    with connection.cursor(row_factory=dict_row) as cursor:
         cursor.execute(
             sql,
             (
@@ -110,7 +110,7 @@ def fetch_indicators_by_date(connection, *, reference_date: str) -> dict:
         cursor.execute(sql, params)
         return [(row["month"], float(row["value"])) for row in cursor.fetchall()]
 
-    with connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cursor:
+    with connection.cursor(row_factory=dict_row) as cursor:
         _series(cursor, """
             SELECT to_char(date_trunc('month', reference_date), 'YYYY-MM') AS month,
                    AVG(krw_usd_rate) AS value
