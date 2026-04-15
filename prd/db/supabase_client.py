@@ -2,7 +2,13 @@
 
 from __future__ import annotations
 
-from supabase import Client, create_client
+from typing import Any
+
+try:
+    from supabase import Client, create_client
+except ModuleNotFoundError:  # pragma: no cover - exercised via create_sb runtime path
+    Client = Any
+    create_client = None
 
 from prd.config import get_supabase_key, get_supabase_url
 
@@ -19,6 +25,11 @@ def create_sb() -> Client:
     if not supabase_url or not supabase_key:
         raise RuntimeError(
             "SUPABASE_URL and one of SUPABASE_SERVICE_ROLE_KEY/SUPABASE_ANON_KEY/SUPABASE_KEY are required."
+        )
+    if create_client is None:
+        raise RuntimeError(
+            "Supabase is configured, but the 'supabase' package is not installed. "
+            "Install it with `python -m pip install -r prd/requirements.txt`."
         )
     return create_client(supabase_url, supabase_key)
 

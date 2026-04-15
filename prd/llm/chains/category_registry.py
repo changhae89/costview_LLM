@@ -1,4 +1,4 @@
-"""Category registry for PRD causal normalization."""
+"""Category registry: DB-backed allowed categories with in-code Korean fallback map."""
 
 from __future__ import annotations
 
@@ -21,6 +21,7 @@ DEFAULT_ALLOWED_CATEGORIES = (
     "shipping",
 )
 
+# 한국어 fallback 키워드만 유지 (영어는 DB keywords 컬럼으로 동적 생성 — 항목 4)
 CATEGORY_FALLBACK_MAP: dict[str, str] = {
     "원유": "oil",
     "유가": "oil",
@@ -28,7 +29,7 @@ CATEGORY_FALLBACK_MAP: dict[str, str] = {
     "주유": "fuel",
     "휘발유": "fuel",
     "경유": "fuel",
-    "연료": "fuel",
+    "디젤": "fuel",
     "가스": "gas",
     "난방": "gas",
     "전기": "energy",
@@ -39,13 +40,14 @@ CATEGORY_FALLBACK_MAP: dict[str, str] = {
     "식료": "food",
     "외식": "food",
     "식당": "food",
+    "쌀": "wheat",
     "밀": "wheat",
-    "빵": "wheat",
     "곡물": "wheat",
     "농산물": "wheat",
     "원자재": "commodity",
-    "국제": "commodity",
-    "원료": "commodity",
+    "잡화": "commodity",
+    "의류": "commodity",
+    "옷": "commodity",
     "물가": "price",
     "소비자가격": "price",
     "생활비": "cost",
@@ -56,17 +58,10 @@ CATEGORY_FALLBACK_MAP: dict[str, str] = {
     "인플레": "inflation",
     "물가상승": "inflation",
     "물류": "shipping",
-    "배송": "shipping",
-    "항공": "shipping",
-    "해운": "shipping",
     "운송": "shipping",
-}
-
-LEGACY_ENGLISH_CATEGORY_MAP: dict[str, str] = {
-    "utility": "energy",
-    "utilities": "energy",
-    "grocery": "food",
-    "groceries": "food",
+    "택배": "shipping",
+    "항공": "shipping",
+    "여행": "shipping",
 }
 
 
@@ -91,9 +86,9 @@ def get_allowed_categories() -> tuple[dict, ...]:
 
 
 def build_english_fallback_map(categories: tuple[dict, ...] | None = None) -> dict[str, str]:
-    """Build English fallback aliases from legacy mappings and DB keywords."""
+    """DB keywords 컬럼을 기반으로 영어 fallback 맵을 동적 생성."""
     cats = categories if categories is not None else get_allowed_categories()
-    result: dict[str, str] = dict(LEGACY_ENGLISH_CATEGORY_MAP)
+    result: dict[str, str] = {}
     for cat in cats:
         for kw in (cat.get("keywords") or []):
             token = str(kw).strip().lower()

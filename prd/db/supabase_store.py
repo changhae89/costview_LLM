@@ -124,6 +124,12 @@ def save_analysis_result_sb(sb: Any, raw_news_id: str, result: dict) -> None:
                 "summary": result.get("summary", ""),
                 "reliability": float(result.get("reliability", 0.85)),
                 "related_indicators": result.get("related_indicators") or [],
+                "reliability_reason": result.get("reliability_reason") or "",
+                "time_horizon": result.get("time_horizon"),
+                "effect_chain": result.get("effect_chain") or [],
+                "buffer": result.get("buffer") or "",
+                "leading_indicator": result.get("leading_indicator"),
+                "geo_scope": result.get("geo_scope"),
             }
         )
         .execute()
@@ -153,6 +159,71 @@ def save_analysis_result_sb(sb: Any, raw_news_id: str, result: dict) -> None:
         raise
 
 
+def fetch_indicators_by_date_sb(sb: Any, *, reference_date: str) -> dict:
+    """Fetch 12-month monthly series of economic indicators up to reference_date."""
+    from datetime import date as _date, timedelta
+
+    ref = _date.fromisoformat(reference_date[:10])
+    # 11개월 전 월의 1일 계산
+    start = ref.replace(day=1)
+    for _ in range(11):
+        start = (start - timedelta(days=1)).replace(day=1)
+    start_month_str = start.isoformat()
+    end_month_str = ref.replace(day=1).isoformat()
+    start_ref_month = start.isoformat()[:7]
+    end_ref_month = ref.isoformat()[:7]
+
+    def _monthly(table: str, date_col: str, value_col: str) -> list[tuple[str, float]]:
+        rows = (
+            sb.table(table)
+            .select(f"{date_col},{value_col}")
+            .gte(date_col, start_month_str)
+            .lte(date_col, end_month_str)
+            .not_.is_(value_col, "null")
+            .order(date_col)
+            .execute()
+        ).data or []
+        return [(r[date_col][:7], float(r[value_col])) for r in rows]
+
+    def _monthly_str(table: str, date_col: str, value_col: str) -> list[tuple[str, float]]:
+        rows = (
+            sb.table(table)
+            .select(f"{date_col},{value_col}")
+            .gte(date_col, start_ref_month)
+            .lte(date_col, end_ref_month)
+            .not_.is_(value_col, "null")
+            .order(date_col)
+            .execute()
+        ).data or []
+        return [(r[date_col][:7], float(r[value_col])) for r in rows]
+
+    def _daily_to_monthly(table: str, date_col: str, value_col: str) -> list[tuple[str, float]]:
+        rows = (
+            sb.table(table)
+            .select(f"{date_col},{value_col}")
+            .gte(date_col, start_month_str)
+            .lte(date_col, reference_date)
+            .not_.is_(value_col, "null")
+            .order(date_col)
+            .execute()
+        ).data or []
+        by_month: dict[str, list[float]] = {}
+        for r in rows:
+            m = r[date_col][:7]
+            by_month.setdefault(m, []).append(float(r[value_col]))
+        return [(m, sum(v) / len(v)) for m, v in sorted(by_month.items())]
+
+    return {
+        "reference_date": reference_date,
+        "krw_usd_rate": _daily_to_monthly("indicator_ecos_daily_logs", "reference_date", "krw_usd_rate"),
+        "wti": _monthly("indicator_ecos_monthly_logs", "reference_date", "import_price_crude_oil"),
+        "cpi_total": _monthly("indicator_kosis_monthly_logs", "reference_date", "cpi_total"),
+        "gpr": _monthly("indicator_gpr_monthly_logs", "reference_date", "gpr_original"),
+        "fred_wti": _daily_to_monthly("indicator_fred_daily_logs", "reference_date", "fred_wti"),
+        "fred_cpi": _monthly_str("indicator_fred_monthly_logs", "reference_month", "fred_cpi"),
+    }
+
+
 def mark_as_processing_sb(sb: Any, raw_news_id: str) -> None:
     """Mark a raw news row as in-progress before LLM analysis."""
     sb.table("raw_news").update({
@@ -164,6 +235,15 @@ def mark_as_processed_sb(sb: Any, raw_news_id: str) -> None:
     """Mark a raw news row as successfully processed."""
     sb.table("raw_news").update({
         "processing_status": "processed",
+        "processing_error": None,
+        "processed_at": "now()",
+    }).eq("id", raw_news_id).execute()
+
+
+def mark_as_skipped_sb(sb: Any, raw_news_id: str) -> None:
+    """Mark a raw news row as skipped (LLM returned empty effects)."""
+    sb.table("raw_news").update({
+        "processing_status": "skipped",
         "processing_error": None,
         "processed_at": "now()",
     }).eq("id", raw_news_id).execute()
