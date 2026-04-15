@@ -62,9 +62,7 @@ jobs:
             git rev-parse --short HEAD
 
             echo "[5/10] Remove previous batch container if it exists"
-            if docker ps -a --format '{{.Names}}' | grep -Fxq "$CONTAINER_NAME"; then
-              docker rm -f "$CONTAINER_NAME" || true
-            fi
+            docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
 
             echo "[6/10] Remove old image if it exists"
             docker image rm "$IMAGE_NAME" || true
