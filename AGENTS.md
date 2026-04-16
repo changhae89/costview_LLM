@@ -135,15 +135,21 @@ Agents should **run the relevant commands above** (or explain why they cannot, e
 
 ## Git Workflow
 
-변경 작업 완료 시 반드시 아래 순서로 진행한다:
+변경 작업은 아래 순서로 진행한다:
 
-1. **이슈 등록** — `gh issue create` (제목 + 작업 내용)
-2. **브랜치 생성** — `feature/<issue번호>-<설명>`
-3. **커밋** — `feat/fix: 설명 (#이슈번호)`
-4. **PR → dev 머지** — `gh pr create --base dev` → `gh pr merge`
-5. **PR → main 머지** — `gh pr create --base main --head dev` → `gh pr merge`
-6. **이슈 코멘트** — 변경 내용 정리 후 `gh issue comment`
-7. **이슈 close** — `gh issue close`
+1. **이슈 등록**: 작업 시작 전 관련 이슈를 등록한다.
+2. **브랜치 작업**: 이슈 번호를 반영한 브랜치에서 수정한다.
+3. **커밋**: 작업 범위에 맞는 작은 단위로 커밋한다.
+4. **PR 생성**: 작업 브랜치에서 PR을 생성한다.
+5. **main 머지**: 검토와 검증이 끝난 PR만 `main`에 머지한다.
+6. **이슈 변경내용 등록**: 머지 후 이슈에 변경 내용, 관련 커밋/PR, 검증 결과를 코멘트로 남긴다.
+7. **이슈 종료**: 변경 내용 기록까지 끝난 뒤 이슈를 닫는다.
+
+권장 형식:
+
+- 브랜치: `feature/<issue-number>-<short-description>` 또는 `fix/<issue-number>-<short-description>`
+- 커밋: `feat: short summary (#<issue-number>)` 또는 `fix: short summary (#<issue-number>)`
+- 이슈 코멘트: 변경 내용 요약, 검증 결과, 관련 PR/커밋 링크를 함께 남긴다.
 
 ## Response Style
 

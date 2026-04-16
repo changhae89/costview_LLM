@@ -189,14 +189,45 @@ def fetch_indicators_by_date(connection, *, reference_date: str) -> dict:
         """, (reference_date, reference_date))
         fred_cpi = [(r["month"], float(r["value"])) for r in cursor.fetchall()]
 
+        cursor.execute("""
+            SELECT
+                AVG(fred_natural_gas) AS natural_gas,
+                AVG(fred_heating_oil) AS heating_oil,
+                AVG(fred_usd_index)   AS usd_index
+            FROM indicator_fred_daily_logs
+            WHERE reference_date::date >= %s::date - INTERVAL '6 days'
+              AND reference_date::date <= %s::date
+        """, (reference_date, reference_date))
+        row = cursor.fetchone()
+        natural_gas_7d = float(row["natural_gas"]) if row and row["natural_gas"] is not None else None
+        heating_oil_7d = float(row["heating_oil"]) if row and row["heating_oil"] is not None else None
+        usd_index_7d   = float(row["usd_index"])   if row and row["usd_index"]   is not None else None
+
+        cursor.execute("""
+            SELECT
+                AVG(gpr_original)    AS gpr_original,
+                AVG(oil_disruptions) AS oil_disruptions
+            FROM indicator_gpr_daily_logs
+            WHERE reference_date::date >= %s::date - INTERVAL '6 days'
+              AND reference_date::date <= %s::date
+        """, (reference_date, reference_date))
+        row = cursor.fetchone()
+        gpr_7d           = float(row["gpr_original"])    if row and row["gpr_original"]    is not None else None
+        oil_disruptions_7d = float(row["oil_disruptions"]) if row and row["oil_disruptions"] is not None else None
+
     return {
-        "reference_date": reference_date,
-        "krw_usd_rate": krw_usd_rate,
-        "wti": wti,
-        "cpi_total": cpi_total,
-        "gpr": gpr,
-        "fred_wti": fred_wti,
-        "fred_cpi": fred_cpi,
+        "reference_date":    reference_date,
+        "krw_usd_rate":      krw_usd_rate,
+        "wti":               wti,
+        "cpi_total":         cpi_total,
+        "gpr":               gpr,
+        "fred_wti":          fred_wti,
+        "fred_cpi":          fred_cpi,
+        "natural_gas_7d":    natural_gas_7d,
+        "heating_oil_7d":    heating_oil_7d,
+        "usd_index_7d":      usd_index_7d,
+        "gpr_7d":            gpr_7d,
+        "oil_disruptions_7d": oil_disruptions_7d,
     }
 
 

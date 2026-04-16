@@ -485,6 +485,16 @@ def build_indicator_context_node(state: NewsState) -> NewsState:
                 lines.append(f"WTI 현물가 ($/배럴):\n  {s}")
             if s := _fmt_series(indicators.get("fred_cpi") or []):
                 lines.append(f"미국 CPI:\n  {s}")
+            if (v := indicators.get("natural_gas_7d")) is not None:
+                lines.append(f"천연가스 현물가 7일평균 ($/MMBtu): ${v:.2f}")
+            if (v := indicators.get("heating_oil_7d")) is not None:
+                lines.append(f"난방유 현물가 7일평균 ($/갤런): ${v:.3f}")
+            if (v := indicators.get("usd_index_7d")) is not None:
+                lines.append(f"달러인덱스 7일평균: {v:.2f}")
+            if (v := indicators.get("gpr_7d")) is not None:
+                lines.append(f"지정학적리스크(GPR) 7일평균: {v:.1f}")
+            if (v := indicators.get("oil_disruptions_7d")) is not None:
+                lines.append(f"원유공급위협(GPR-Oil) 7일평균: {v:.1f}")
             indicator_context = "\n".join(lines)
             indicator_loaded = True
         except Exception:
@@ -538,7 +548,11 @@ def validate_causal_node(state: NewsState) -> NewsState:
         news = state["news"]
         news_id = str(news.get("id") or "")
         causal_dict = parse_causal_json(state["causal_raw"])
-        causal = normalize_causal(causal_dict, categories=news.get("allowed_categories"))
+        causal = normalize_causal(
+            causal_dict,
+            categories=news.get("allowed_categories"),
+            summary=state.get("summary", ""),
+        )
 
         if not causal.get("effects"):
             elapsed = time.perf_counter() - started_at
@@ -555,7 +569,7 @@ def validate_causal_node(state: NewsState) -> NewsState:
                     detail="result=skip(empty_effects)",
                 ),
             }
-        validate_causal_result(causal)
+        validate_causal_result(causal, summary=state.get("summary", ""))
         result = {"summary": state["summary"], **causal}
         elapsed = time.perf_counter() - started_at
         print(f"[validate][news_id={news_id}] elapsed={elapsed:.2f}s result=success")
