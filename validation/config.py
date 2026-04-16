@@ -17,4 +17,5 @@ MAGNITUDE_HIGH_MIN_PCT: float = 5.0
 CHANGE_PCT_INCLUSIVE: bool = True
 
 # 시차 검증: M+N 으로 비교할 개월 수 (1 = M+1, 2 = M+2, ...)
-HORIZON_MONTHS: int = 1
+# M+2를 기본값으로 사용 — 뉴스 신호가 실제 지표에 반영되는 데 평균 1~2개월 소요
+HORIZON_MONTHS: int = 2

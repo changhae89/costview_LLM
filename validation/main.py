@@ -17,7 +17,7 @@ import os
 
 import psycopg2
 
-from validation.runner import print_combined_report, run_validation
+from validation.runner import print_combined_report, run_validation, run_clustered_validation, print_clustered_report
 
 # validation/.env 우선, 루트 .env는 fallback
 _HERE = Path(__file__).resolve().parent
@@ -62,6 +62,10 @@ def main() -> None:
             )
             results.append((chain_scores, analysis_scores, keyword_stats, h))
         print_combined_report(results)
+
+        for h in [1, 2, 3]:
+            cluster_results = run_clustered_validation(conn, start=START_DATE, end=END_DATE, horizon=h)
+            print_clustered_report(cluster_results, horizon=h)
     finally:
         conn.close()
 

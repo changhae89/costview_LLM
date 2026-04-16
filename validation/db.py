@@ -21,6 +21,7 @@ def fetch_cohort(connection, *, start: str, end: str | None = None) -> list[dict
             na.id                                                               AS news_analysis_id,
             na.time_horizon,
             na.geo_scope,
+            na.reliability,
             cc.id                                                               AS causal_chain_id,
             cc.category,
             cc.direction,

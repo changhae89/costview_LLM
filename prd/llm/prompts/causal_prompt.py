@@ -4,8 +4,8 @@ from langchain_core.prompts import ChatPromptTemplate
 
 
 def _build_category_block(categories: list[dict]) -> str:
-    items = categories or [{"code": "fuel", "name_ko": "연료", "keywords": ["gasoline", "diesel"]}]
-    result = []
+    items = categories or [{"code": "fuel", "name_ko": "fuel", "keywords": ["gasoline", "diesel"]}]
+    result: list[str] = []
     for cat in items:
         code = cat["code"]
         name_ko = cat["name_ko"]
@@ -24,65 +24,100 @@ def _build_category_text(categories: list[dict]) -> str:
 def _build_example_json() -> str:
     up_example = (
         "{{"
-        '"event":"국제 유가 급등",'
-        '"mechanism":"원유 감산과 공급 불안으로 수입 가격이 올라 소비자 연료비 부담이 커짐",'
+        '"event":"Global oil prices rise after supply disruption",'
+        '"mechanism":"A supply shock lifts crude import costs and increases household fuel spending.",'
         '"related_indicators":["wti"],'
         '"reliability":0.84,'
-        '"reliability_reason":"기사에 원유 가격 급등과 소비자 부담 연결이 직접 언급됨",'
+        '"reliability_reason":"The article directly links supply disruption, oil price increases, and higher fuel costs.",'
         '"time_horizon":"short",'
-        '"effect_chain":["공급 불안","원유 가격 급등","소비자 연료비 상승"],'
-        '"buffer":"정부 보조금 가능성",'
+        '"effect_chain":["Supply disruption","Oil price increase","Household fuel cost increase"],'
+        '"buffer":"Possible government subsidy",'
         '"leading_indicator":"leading",'
         '"geo_scope":"global",'
         '"article_scope":"global",'
         '"korea_relevance":"indirect",'
-        '"effects":['
-        '{{"category":"fuel","direction":"up","magnitude":"medium","change_pct_min":2.0,"change_pct_max":5.0,"monthly_impact":15000}}'
-        "]"
+        '"effects":[{{"category":"fuel","direction":"up","magnitude":"medium","change_pct_min":2.0,"change_pct_max":5.0,"monthly_impact":15000}}]'
         "}}"
     )
     down_example = (
         "{{"
-        '"event":"OPEC 증산 합의로 국제 유가 하락",'
-        '"mechanism":"공급 확대로 원유 수입가가 내려가 소비자 연료비 부담이 줄어듦",'
+        '"event":"Output increase pushes oil prices lower",'
+        '"mechanism":"Higher supply lowers crude prices and reduces household fuel spending.",'
         '"related_indicators":["wti"],'
         '"reliability":0.82,'
-        '"reliability_reason":"기사에 증산 합의와 유가 하락, 소비자 연료비 인하 연결이 직접 언급됨",'
+        '"reliability_reason":"The article directly links higher supply, lower oil prices, and lower fuel costs.",'
         '"time_horizon":"short",'
-        '"effect_chain":["공급 확대","원유 가격 하락","소비자 연료비 하락"],'
+        '"effect_chain":["Supply increase","Oil price decline","Household fuel cost decline"],'
         '"buffer":"",'
         '"leading_indicator":"leading",'
         '"geo_scope":"global",'
         '"article_scope":"global",'
         '"korea_relevance":"indirect",'
-        '"effects":['
-        '{{"category":"fuel","direction":"down","magnitude":"medium","change_pct_min":-5.0,"change_pct_max":-2.0,"monthly_impact":-12000}}'
-        "]"
+        '"effects":[{{"category":"fuel","direction":"down","magnitude":"medium","change_pct_min":-5.0,"change_pct_max":-2.0,"monthly_impact":-12000}}]'
         "}}"
     )
-    neutral_example = (
+    neutral_example1 = (
         "{{"
-        '"event":"산유국 회의에서 증산 논의됐으나 합의 불발",'
-        '"mechanism":"공급 전망 불확실성이 커졌으나 실제 공급량 변화 없어 소비자 연료비 영향 미미",'
+        '"event":"Supply talks fail but no immediate price change",'
+        '"mechanism":"Negotiation failure increases uncertainty, but the article does not show a clear household cost move.",'
         '"related_indicators":["wti"],'
         '"reliability":0.55,'
-        '"reliability_reason":"합의 불발로 실질 공급 변화 없음. 가격 영향 불확실",'
+        '"reliability_reason":"The article mentions uncertainty but no clear pass-through to household prices.",'
         '"time_horizon":"short",'
-        '"effect_chain":["증산 합의 불발","공급 불확실성","연료비 소폭 변동 가능성"],'
-        '"buffer":"실제 공급량 변화 없음",'
+        '"effect_chain":["Failed talks","Market uncertainty","Limited household cost effect"],'
+        '"buffer":"No realized price move yet",'
         '"leading_indicator":"leading",'
         '"geo_scope":"global",'
         '"article_scope":"global",'
         '"korea_relevance":"indirect",'
-        '"effects":['
-        '{{"category":"fuel","direction":"neutral","magnitude":"low","change_pct_min":0,"change_pct_max":0,"monthly_impact":0}}'
-        "]"
+        '"effects":[{{"category":"fuel","direction":"neutral","magnitude":"low","change_pct_min":null,"change_pct_max":null,"monthly_impact":0}}]'
+        "}}"
+    )
+    neutral_example2 = (
+        "{{"
+        '"event":"Central bank holds rates unchanged",'
+        '"mechanism":"Rate hold keeps borrowing costs stable but does not directly change household fuel or food prices.",'
+        '"related_indicators":[],'
+        '"reliability":0.45,'
+        '"reliability_reason":"No direct household price number stated in the article.",'
+        '"time_horizon":"medium",'
+        '"effect_chain":["Rate hold","Stable borrowing costs","No direct household price change"],'
+        '"buffer":"",'
+        '"leading_indicator":"lagging",'
+        '"geo_scope":"global",'
+        '"article_scope":"americas",'
+        '"korea_relevance":"none",'
+        '"effects":[]'
+        "}}"
+    )
+    neutral_example3 = (
+        "{{"
+        '"event":"Global commodity prices edge higher on demand optimism",'
+        '"mechanism":"Marginal commodity price increase; no specific household price figure in the article.",'
+        '"related_indicators":["wti"],'
+        '"reliability":0.52,'
+        '"reliability_reason":"Article mentions demand optimism but gives no direct household price number.",'
+        '"time_horizon":"short",'
+        '"effect_chain":["Demand optimism","Commodity price uptick","Uncertain household pass-through"],'
+        '"buffer":"Pass-through delay and retail competition",'
+        '"leading_indicator":"leading",'
+        '"geo_scope":"global",'
+        '"article_scope":"global",'
+        '"korea_relevance":"indirect",'
+        '"effects":[{{"category":"energy","direction":"neutral","magnitude":"low","change_pct_min":null,"change_pct_max":null,"monthly_impact":0}}]'
         "}}"
     )
     return (
-        "cost_signal:up 예시:\n" + up_example
-        + "\n\ncost_signal:down 예시:\n" + down_example
-        + "\n\ncost_signal:up이지만 효과 미미 → neutral 예시:\n" + neutral_example
+        "cost_signal: up example (specific % figure present):\n"
+        + up_example
+        + "\n\ncost_signal: down example (specific % figure present):\n"
+        + down_example
+        + "\n\nneutral example 1 — no realized price move:\n"
+        + neutral_example1
+        + "\n\nneutral example 2 — macro policy, no direct household price:\n"
+        + neutral_example2
+        + "\n\nneutral example 3 — no specific household price number in article:\n"
+        + neutral_example3
     )
 
 
@@ -93,107 +128,107 @@ def build_causal_prompt(categories: list[dict]) -> ChatPromptTemplate:
 
     system_prompt = dedent(
         f"""
-        당신은 소비자 생활비 영향 분석 결과를 구조화된 JSON으로 변환하는 모델입니다.
+        You convert the article summary into structured causal JSON for consumer cost impact.
 
-        입력:
-        - 현재 뉴스 압축 노트
-        - 기사 시점 경제지표 요약
-        - 과거 유사 기사 요약
-        - 허용된 생활비 카테고리
+        Inputs:
+        - current article summary note
+        - indicator context at article date
+        - historical similar article summaries
+        - allowed consumer-cost categories
 
-        생활비 카테고리:
+        Allowed categories:
         {category_block}
 
-        목표:
-        - 생활비에 영향을 주는 직접 경로만 남깁니다.
-        - 기사 근거가 약하면 보수적으로 판단합니다.
-        - 반드시 유효한 JSON만 출력합니다.
+        Goals:
+        - Focus only on direct household cost channels.
+        - Be conservative when the evidence is weak.
+        - Output valid JSON only.
 
-        핵심 규칙:
-        1. 반드시 순수 JSON만 출력합니다. 출력은 반드시 JSON 객체 시작 문자로 시작해야 합니다.
-           ```json, ```, 마크다운, 설명 텍스트를 절대 포함하지 않습니다.
-        2. 기사에 직접 근거가 없는 내용은 쓰지 않습니다.
-        3. 정치 기사, 인물 기사, 문화 기사처럼 생활비 연결이 약하면 effects는 빈 배열로 둡니다.
-        4. 현재 뉴스 요약에 cost_signal:none 또는 consumer_link:no가 보이면 effects는 기본적으로 빈 배열이어야 합니다.
-        5. history_context는 참고만 합니다. 현재 기사 근거보다 우선하지 않습니다.
-        6. indicator_context는 보조 근거일 뿐이며 기사 내용과 맞을 때만 사용합니다.
-        7. geo_scope는 기존 저장 호환용 필드이며 global, asia, korea 중 하나만 사용합니다.
-        8. article_scope는 기사 자체의 실제 지역이며 korea, uk, europe, asia, middle_east, africa, americas, global, unknown 중 하나만 사용합니다.
-        9. korea_relevance는 한국 소비자 생활비와의 관련성으로 direct, indirect, none 중 하나만 사용합니다.
-        10. 영국 기사면 article_scope는 uk입니다. 유럽 일반 기사면 europe입니다.
-        11. 한국 과거 기사 데이터가 부족하더라도 foreign 기사를 korea로 바꾸지 않습니다.
-        12. 기사 자체가 한국이거나 한국 가계 영향이 직접 명시되면 geo_scope=korea를 사용할 수 있습니다.
-        13. 아시아 지역 기사지만 한국 직접 연결이 약하면 geo_scope=asia로 둡니다.
-        14. 영국, 유럽, 미국, 중동, 아프리카 등 비한국 기사에서 한국 직접 연결 근거가 없으면 geo_scope=global로 둡니다.
-        15. 확신이 없으면 geo_scope는 global, article_scope는 unknown으로 둡니다.
-        16. effect_chain은 최대 3단계까지만 작성합니다.
-        17. effects는 최대 3개까지만 작성합니다.
-        18. 동일한 category 중복은 한 번만 사용합니다.
-        19. related_indicators는 usd_krw, wti, gold, base_rate 중 관련 있는 것만 씁니다.
-        20. reliability_reason은 짧고 직접적으로 작성합니다.
-        21. 아래 경우는 생활비 관련 기사로 보지 말고 effects를 빈 배열로 둡니다.
-            - 개별 주택 매매가, 개별 부동산 시세, 자산가격, 주가, 기업 인수합병, 단일 주식/예술품 가격
-            - 분쟁지역의 국지적 자산가격 왜곡이나 일시적 매매가 급락
-            - 화장품, 미용, 사치재, 전시, 공연, 티켓, 오락, 고가 취미 등 선택적 소비 기사
-            - 특정 브랜드/제품의 과장 광고 논란만 있고 필수 생활비 항목과 직접 연결이 없는 경우
-        22. 아래처럼 넓은 생활비 항목과 직접 연결될 때만 effects를 작성합니다.
-            - 연료비, 에너지비, 가스비, 식비, 곡물/원자재 가격, 운송비, 공공요금, 전반적 물가, 통신비
-        23. 선택적 소비 또는 자산 가치만 변한다고 보이면 effects는 빈 배열로 둡니다.
-        24. "가격이 내려가면 생활비가 줄 수 있다" 같은 일반론만으로는 effects를 만들지 않습니다.
-        25. 자동차 판매 가격 경쟁, 딜러 매장 경쟁, car forecourt/forecourts 문맥은 연료비 하락으로 해석하지 않습니다.
-        26. 현재 뉴스 압축 노트의 cost_signal을 참고하되, 효과 크기를 먼저 판단합니다.
-            - cost_signal: none → effects: []
-            - cost_signal: up/down이라도 아래 neutral 조건에 해당하면 direction: neutral을 사용합니다.
-            - cost_signal: up/down이고 효과가 명확히 2% 이상 예상될 때만 up/down을 사용합니다.
-        27. 공급 증가, 가격 하락, 정부 보조 확대, 세금 인하, 재고 증가, 수요 감소 뉴스는 direction: down을 적극 사용합니다.
-        28. 아래 중 하나라도 해당하면 direction: neutral, magnitude: low를 사용합니다.
-            - 기사에 구체적인 수치나 변화폭이 언급되지 않은 경우
-            - 상반된 힘이 동시에 언급되어 효과가 상쇄될 가능성이 있는 경우
-            - 효과가 간접적이거나 2단계 이상 거쳐야 소비자에게 도달하는 경우
-            - reliability가 0.7 미만으로 확신이 낮은 경우
-            - 정책 논의, 경고, 전망 기사이며 실제 가격 변화가 아직 발생하지 않은 경우
+        Hard output rules:
+        1. Output a single raw JSON object only. No markdown fences, no explanation text.
+        2. Use only evidence supported by the current article. History and indicators are support context, not primary evidence.
+        3. If the summary shows `cost_signal:none` or `consumer_link:no`, output `effects: []`.
+        4. Use only these enums:
+           - direction: up | down | neutral
+           - magnitude: low | medium | high
+           - time_horizon: short | medium | long
+           - leading_indicator: leading | coincident | lagging
+           - geo_scope: global | asia | korea
+           - article_scope: korea | uk | europe | asia | middle_east | africa | americas | global | unknown
+           - korea_relevance: direct | indirect | none
+        5. Use only these indicator codes when relevant: usd_krw, wti, gold, base_rate.
+        6. Keep `effect_chain` to at most 5 short steps.
+        7. Keep `effects` to at most 3 unique categories.
+        8. If `buffer` is empty, use an empty string.
 
-        direction 기준 (월간 변화율 R 기준):
-        - neutral: |R| < 2% (변화가 미미하거나 상쇄되는 경우) — 실제로 뉴스 효과의 절반 이상이 여기에 해당합니다.
-        - up / down: |R| >= 2% — 기사에 명확한 수치 근거가 있을 때만 사용합니다.
-        - 확신이 없으면 반드시 neutral을 선택합니다. up/down은 근거가 명확할 때만 씁니다.
+        Direction rules:
+        9. `direction: neutral` is the DEFAULT. Use `up` or `down` only when the article provides a clear and specific number showing a household price move of 2 % or more.
+        10. Read `cost_signal` first. If `cost_signal: none`, set `effects: []`.
+        11. If `cost_signal: up` or `down`, still use `direction: neutral` unless ALL of the following are true:
+            - The article states a specific percentage or price figure for the household cost move.
+            - The move is 2 % or larger.
+            - The effect reaches consumers directly, not through a long indirect chain.
+            - reliability >= 0.70.
+        12. Use `direction: neutral` and `magnitude: low` if ANY of the following apply:
+            - The article mentions no specific % number or price change figure.
+            - The effect passes through 2 or more intermediate steps before reaching consumers.
+            - Opposing forces exist that may offset the impact.
+            - The article is about policy discussion, forecasts, or warnings — not a realized price change.
+            - geo_scope is global and the article has no explicit Korea household link.
+            - reliability < 0.70.
+        13. In practice, roughly 30–40 % of articles produce a clear up/down signal. The rest are neutral. Do not force up/down.
+        14. Supply increase, tax cut, subsidy expansion, price cut, duty cut, and inventory increase → `down` (when rule 11 is satisfied).
+        15. Supply disruption, tax increase, price rise, duty increase, import cost increase, and shortages → `up` (when rule 11 is satisfied).
 
-        magnitude 기준:
-        - low: 0~2%
-        - medium: 2~5%
-        - high: 5% 이상
+        Change-percent rules:
+        16. If the article explicitly states a direct household-price figure, use that number to build a conservative range.
+        16a. Do not copy headline CPI, commodity prices, or producer prices directly into `change_pct` unless the article explicitly says that number is the consumer-facing price move.
+        16b. If the article gives only one exact number, build a range around it (e.g. 4 % → 3.0 to 5.0).
+        17. If the article does NOT provide a specific price figure, set `change_pct_min = null` and `change_pct_max = null`. Do not invent a range.
+        18. For `down`, change_pct values are negative in ascending order, for example `-5.0` to `-2.0`.
+        19. For `up`, change_pct values are positive in ascending order, for example `2.0` to `5.0`.
+        20. For `neutral`, set `change_pct_min = null`, `change_pct_max = null`, and `monthly_impact = 0`.
+        21. If you are unsure about `monthly_impact`, set it to `0`.
 
-        필드 규칙:
-        - event, mechanism은 비우지 않습니다.
-        - time_horizon: short | medium | long
-        - leading_indicator: leading | coincident | lagging
-        - geo_scope: global | asia | korea
-        - article_scope: korea | uk | europe | asia | middle_east | africa | americas | global | unknown
-        - korea_relevance: direct | indirect | none
-        - effects[].category / direction / magnitude는 아래 값만 사용합니다.
-          category: {category_text}
-          direction: up | down | neutral
-          magnitude: low | medium | high
-        - direction=neutral이면 change_pct_min, change_pct_max, monthly_impact는 0으로 둡니다.
-        - 확신이 낮으면 monthly_impact는 0으로 두고 reliability를 낮춥니다.
-        - buffer 값이 없으면 빈 문자열("")을 사용합니다. none, null, N/A는 쓰지 않습니다.
+        Scope rules:
+        21. Do not create effects for stock-market coverage, corporate earnings, M&A, asset prices, or general politics without direct household pass-through.
+        22. Foreign articles should stay foreign unless the article explicitly states a direct Korea household impact.
+        23. If the article is UK-specific, use `article_scope: uk`. Use `europe`, `americas`, `middle_east`, and others only when clearly supported.
 
-        출력 예시:
+        Required JSON fields:
+        - event
+        - mechanism
+        - related_indicators
+        - reliability
+        - reliability_reason
+        - effects
+        - time_horizon
+        - effect_chain
+        - buffer
+        - leading_indicator
+        - geo_scope
+        - article_scope
+        - korea_relevance
+
+        Allowed category codes:
+        {category_text}
+
+        Output examples:
         {example_json}
         """
     ).strip()
 
     user_prompt = dedent(
         """
-        아래 입력을 바탕으로 생활비 영향 JSON만 출력하세요.
+        Output only the JSON object.
 
-        [현재 뉴스 압축 노트]
+        [Current article summary]
         {summary}
 
-        [기사 시점 경제지표 요약]
+        [Indicator context]
         {indicator_context}
 
-        [과거 유사 기사 요약]
+        [Historical context]
         {history_context}
         """
     ).strip()
