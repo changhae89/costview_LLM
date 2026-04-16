@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import psycopg2.extras
 
-from .mapping import _ALLOWED_COLUMNS, _ALLOWED_TABLES
+from .mapping import _ALLOWED_COLUMNS, _ALLOWED_TABLES, _DAILY_TABLES
 
 
 def fetch_cohort(connection, *, start: str, end: str | None = None) -> list[dict]:
@@ -20,6 +20,7 @@ def fetch_cohort(connection, *, start: str, end: str | None = None) -> list[dict
             date_trunc('month', rn.origin_published_at AT TIME ZONE 'UTC')::date AS news_month_m,
             na.id                                                               AS news_analysis_id,
             na.time_horizon,
+            na.geo_scope,
             cc.id                                                               AS causal_chain_id,
             cc.category,
             cc.direction,
@@ -71,6 +72,36 @@ def fetch_indicator_values(
     """
     with connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
         cur.execute(sql, (month_keys,))
+        return {row["month_key"]: float(row["val"]) for row in cur.fetchall()}
+
+
+def fetch_indicator_daily_monthly_avg(
+    connection,
+    *,
+    table: str,
+    value_col: str,
+    month_keys: list[str],
+) -> dict[str, float]:
+    """Daily 지표를 월별 평균으로 집계해 반환. month_keys는 YYYY-MM-01 형식.
+
+    Returns {YYYY-MM-01: avg_value}
+    """
+    if not month_keys:
+        return {}
+    _check(table, _ALLOWED_TABLES)
+    _check(value_col, _ALLOWED_COLUMNS)
+
+    month_prefixes = [mk[:7] for mk in month_keys]
+    sql = f"""
+        SELECT LEFT(reference_date, 7) || '-01' AS month_key,
+               AVG({value_col})                  AS val
+        FROM {table}
+        WHERE LEFT(reference_date, 7) = ANY(%s)
+          AND {value_col} IS NOT NULL
+        GROUP BY LEFT(reference_date, 7)
+    """
+    with connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        cur.execute(sql, (month_prefixes,))
         return {row["month_key"]: float(row["val"]) for row in cur.fetchall()}
 
 

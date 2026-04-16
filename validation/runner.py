@@ -6,8 +6,8 @@ from collections import defaultdict
 from datetime import date
 
 from .config import HORIZON_MONTHS, NEUTRAL_THRESHOLD_PCT
-from .db import fetch_cohort, fetch_followup_keyword_counts, fetch_indicator_values
-from .mapping import CATEGORY_KEYWORDS, CATEGORY_MAP
+from .db import fetch_cohort, fetch_followup_keyword_counts, fetch_indicator_daily_monthly_avg, fetch_indicator_values
+from .mapping import CATEGORY_KEYWORDS, _DAILY_TABLES, get_category_mapping
 from .scorer import AnalysisScore, ChainScore, aggregate_analysis, score_chain
 
 
@@ -57,23 +57,31 @@ def run_validation(
     # --- Bulk-fetch indicator values ---
     needed: dict[tuple[str, str, str], set[str]] = defaultdict(set)
     for row in rows:
-        mapping = CATEGORY_MAP.get(row["category"])
+        mapping = get_category_mapping(row["category"], row.get("geo_scope"))
         if not mapping:
             continue
         table, value_col, date_key_col = mapping
         key_m, key_horizon = _month_keys(row["news_month_m"], date_key_col, horizon)
         needed[(table, value_col, date_key_col)].update((key_m, key_horizon))
 
-    cache: dict[tuple[str, str, str], dict[str, float]] = {
-        key: fetch_indicator_values(
-            connection,
-            table=key[0],
-            value_col=key[1],
-            date_key_col=key[2],
-            month_keys=list(months),
-        )
-        for key, months in needed.items()
-    }
+    cache: dict[tuple[str, str, str], dict[str, float]] = {}
+    for key, months in needed.items():
+        table, value_col, date_key_col = key
+        if table in _DAILY_TABLES:
+            cache[key] = fetch_indicator_daily_monthly_avg(
+                connection,
+                table=table,
+                value_col=value_col,
+                month_keys=list(months),
+            )
+        else:
+            cache[key] = fetch_indicator_values(
+                connection,
+                table=table,
+                value_col=value_col,
+                date_key_col=date_key_col,
+                month_keys=list(months),
+            )
 
     # --- Score each chain ---
     chains_by_analysis: dict[str, list[ChainScore]] = defaultdict(list)
@@ -83,7 +91,7 @@ def run_validation(
 
     for row in rows:
         na_id = str(row["news_analysis_id"])
-        mapping = CATEGORY_MAP.get(row["category"])
+        mapping = get_category_mapping(row["category"], row.get("geo_scope"))
         if not mapping:
             skipped_by_analysis[na_id] += 1
             continue
