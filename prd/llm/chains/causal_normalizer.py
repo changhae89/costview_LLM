@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 from prd.llm.chains.category_registry import (
@@ -30,6 +31,16 @@ ALLOWED_ARTICLE_SCOPES = {
     "unknown",
 }
 ALLOWED_KOREA_RELEVANCE = {"direct", "indirect", "none"}
+
+MAGNITUDE_BANDS: dict[str, tuple[float, float]] = {
+    "low": (0.0, 2.0),
+    "medium": (2.0, 5.0),
+    "high": (5.0, 10.0),
+}
+MACRO_PASS_THROUGH_CATEGORIES = {"price", "inflation", "cost"}
+DEFAULT_DIRECTIONAL_LOW_BAND: tuple[float, float] = (0.5, 2.0)
+MAX_DB_CHANGE_PCT = 999.99
+MAX_DB_MONTHLY_IMPACT = 2_147_483_647
 
 # 구 LLM/스키마에서 쓰이던 영어 라벨 → 현재 DB 코드
 LEGACY_ENGLISH_CATEGORY_ALIASES: dict[str, str] = {
@@ -68,10 +79,15 @@ def parse_causal_json(raw: str) -> dict[str, Any]:
     return parsed
 
 
-def normalize_causal(raw_causal: dict[str, Any], categories: list[str] | list[dict] | None = None) -> dict[str, Any]:
+def normalize_causal(
+    raw_causal: dict[str, Any],
+    categories: list[str] | list[dict] | None = None,
+    summary: str | None = None,
+) -> dict[str, Any]:
     out = dict(raw_causal) if isinstance(raw_causal, dict) else {}
     raw_effects = out.get("effects")
     effects = raw_effects if isinstance(raw_effects, list) else []
+    summary_cost_signal = _extract_summary_field(summary or "", "cost_signal").lower()
     raw_cats = categories or list(get_allowed_categories())
     allowed_categories = tuple(
         c["code"] if isinstance(c, dict) else c for c in raw_cats
@@ -87,17 +103,30 @@ def normalize_causal(raw_causal: dict[str, Any], categories: list[str] | list[di
 
         direction = _normalize_direction(effect.get("direction"))
         magnitude = _normalize_magnitude(effect.get("magnitude"))
+        direction = _align_direction_with_cost_signal(direction, summary_cost_signal)
         change_pct_min = _to_float(effect.get("change_pct_min"))
         change_pct_max = _to_float(effect.get("change_pct_max"))
         monthly_impact = _to_int(effect.get("monthly_impact"))
+        change_pct_min, change_pct_max = _normalize_change_pct_range(
+            category=category,
+            direction=direction,
+            magnitude=magnitude,
+            change_pct_min=change_pct_min,
+            change_pct_max=change_pct_max,
+        )
+        magnitude = _derive_magnitude_from_range(
+            direction=direction,
+            change_pct_min=change_pct_min,
+            change_pct_max=change_pct_max,
+        )
 
-        if (
-            direction == "neutral"
-            and (change_pct_min in (None, 0.0))
-            and (change_pct_max in (None, 0.0))
-            and (monthly_impact in (None, 0))
-        ):
+        if direction == "neutral":
             magnitude = "low"
+            change_pct_min = None
+            change_pct_max = None
+            monthly_impact = 0
+        elif monthly_impact is None:
+            monthly_impact = 0
 
         normalized_effects.append(
             {
@@ -109,6 +138,11 @@ def normalize_causal(raw_causal: dict[str, Any], categories: list[str] | list[di
                 "monthly_impact": monthly_impact,
             }
         )
+
+    if summary_cost_signal == "none":
+        normalized_effects = []
+    else:
+        normalized_effects = _reduce_zero_neutral_effects(normalized_effects, summary_cost_signal)
 
     deduped: list[dict[str, Any]] = []
     seen: set[tuple[Any, ...]] = set()
@@ -162,15 +196,25 @@ def normalize_causal(raw_causal: dict[str, Any], categories: list[str] | list[di
     return CausalResult.model_validate(normalized).model_dump()
 
 
-def validate_causal_result(causal: dict[str, Any]) -> None:
+def validate_causal_result(causal: dict[str, Any], summary: str | None = None) -> None:
     event = str(causal.get("event") or "").strip()
     mechanism = str(causal.get("mechanism") or "").strip()
     effects = causal.get("effects") or []
+    summary_cost_signal = _extract_summary_field(summary or "", "cost_signal").lower()
 
     if not event:
         raise ValueError("event is empty")
     if not mechanism:
         raise ValueError("mechanism is empty")
+    if summary_cost_signal == "none" and effects:
+        raise ValueError("effects must be empty when summary cost_signal is none")
+    if summary_cost_signal in {"up", "down"}:
+        for effect in effects:
+            direction = str(effect.get("direction") or "").strip().lower()
+            if direction in {"up", "down"} and direction != summary_cost_signal:
+                raise ValueError(
+                    f"effect direction {direction} conflicts with summary cost_signal {summary_cost_signal}"
+                )
 
     if effects and _all_effects_are_zero_neutral(effects):
         raise ValueError("all effects are neutral with zero impact")
@@ -209,6 +253,16 @@ def _normalize_direction(value: Any) -> str:
     return "neutral"
 
 
+def _align_direction_with_cost_signal(direction: str, cost_signal: str) -> str:
+    if cost_signal == "none":
+        return "neutral"
+    if direction == "neutral":
+        return direction
+    if cost_signal in {"up", "down"}:
+        return cost_signal
+    return direction
+
+
 def _normalize_magnitude(value: Any) -> str:
     lowered = str(value or "medium").strip().lower()
     if lowered in ALLOWED_MAGNITUDES:
@@ -218,6 +272,82 @@ def _normalize_magnitude(value: Any) -> str:
     if lowered in {"large", "strong", "높음", "큼", "강함", "심각"}:
         return "high"
     return "medium"
+
+
+def _normalize_change_pct_range(
+    *,
+    category: str,
+    direction: str,
+    magnitude: str,
+    change_pct_min: float | None,
+    change_pct_max: float | None,
+) -> tuple[float | None, float | None]:
+    if direction == "neutral":
+        return None, None
+
+    band_min, band_max = MAGNITUDE_BANDS.get(magnitude, MAGNITUDE_BANDS["medium"])
+    values = [abs(v) for v in (change_pct_min, change_pct_max) if v is not None]
+
+    if not values:
+        return None, None
+    elif len(values) == 1:
+        single = values[0]
+        if single < band_min:
+            values = [single, band_min]
+        elif single > band_max:
+            values = [band_min, single]
+        else:
+            values = [band_min, single]
+
+    lo, hi = min(values), max(values)
+    lo, hi = _snap_macro_categories_to_band(
+        category=category,
+        magnitude=magnitude,
+        lo=lo,
+        hi=hi,
+    )
+    lo = _clamp_change_pct(lo)
+    hi = _clamp_change_pct(hi)
+
+    if direction == "down":
+        return -hi, -lo
+    return lo, hi
+
+
+def _snap_macro_categories_to_band(
+    *,
+    category: str,
+    magnitude: str,
+    lo: float,
+    hi: float,
+) -> tuple[float, float]:
+    if category not in MACRO_PASS_THROUGH_CATEGORIES:
+        return lo, hi
+    if hi <= MAGNITUDE_BANDS["high"][1]:
+        return lo, hi
+    band_min, band_max = MAGNITUDE_BANDS.get(magnitude, MAGNITUDE_BANDS["medium"])
+    return band_min, band_max
+
+
+def _derive_magnitude_from_range(
+    *,
+    direction: str,
+    change_pct_min: float | None,
+    change_pct_max: float | None,
+) -> str:
+    if direction == "neutral":
+        return "low"
+
+    values = [abs(v) for v in (change_pct_min, change_pct_max) if v is not None]
+    if not values:
+        return "medium"
+
+    peak = max(values)
+    if peak >= MAGNITUDE_BANDS["high"][0]:
+        return "high"
+    if peak >= MAGNITUDE_BANDS["medium"][0]:
+        return "medium"
+    return "low"
 
 
 def _normalize_enum(value: Any, allowed: set[str]) -> str | None:
@@ -232,6 +362,40 @@ def _normalize_reliability(value: Any) -> float:
     if raw is None:
         return 0.85
     return max(0.0, min(1.0, raw))
+
+
+def _reduce_zero_neutral_effects(
+    effects: list[dict[str, Any]],
+    summary_cost_signal: str,
+) -> list[dict[str, Any]]:
+    if summary_cost_signal not in {"up", "down"}:
+        return effects
+    if not effects or not _all_effects_are_zero_neutral(effects):
+        return effects
+
+    promoted: list[dict[str, Any]] = []
+    promoted_once = False
+    for effect in effects:
+        updated = dict(effect)
+        if not promoted_once:
+            updated["direction"] = summary_cost_signal
+            updated["magnitude"] = "low"
+            if summary_cost_signal == "down":
+                updated["change_pct_min"] = -DEFAULT_DIRECTIONAL_LOW_BAND[1]
+                updated["change_pct_max"] = -DEFAULT_DIRECTIONAL_LOW_BAND[0]
+            else:
+                updated["change_pct_min"] = DEFAULT_DIRECTIONAL_LOW_BAND[0]
+                updated["change_pct_max"] = DEFAULT_DIRECTIONAL_LOW_BAND[1]
+            updated["monthly_impact"] = 0
+            promoted_once = True
+        promoted.append(updated)
+    return promoted
+
+
+def _extract_summary_field(summary: str, field_name: str) -> str:
+    pattern = rf"(?im)^{re.escape(field_name)}:\s*(.+)$"
+    match = re.search(pattern, summary or "")
+    return match.group(1).strip() if match else ""
 
 
 def _all_effects_are_zero_neutral(effects: list[dict[str, Any]]) -> bool:
@@ -251,16 +415,25 @@ def _all_effects_are_zero_neutral(effects: list[dict[str, Any]]) -> bool:
 
 def _to_float(value: Any) -> float | None:
     try:
-        return float(value) if value is not None else None
+        if value is None:
+            return None
+        return _clamp_change_pct(float(value))
     except (TypeError, ValueError):
         return None
 
 
 def _to_int(value: Any) -> int | None:
     try:
-        return int(value) if value is not None else None
+        if value is None:
+            return None
+        raw = int(value)
+        return max(-MAX_DB_MONTHLY_IMPACT, min(MAX_DB_MONTHLY_IMPACT, raw))
     except (TypeError, ValueError):
         return None
+
+
+def _clamp_change_pct(value: float) -> float:
+    return max(-MAX_DB_CHANGE_PCT, min(MAX_DB_CHANGE_PCT, value))
 
 
 def _flatten_json_strings(text: str) -> str:
