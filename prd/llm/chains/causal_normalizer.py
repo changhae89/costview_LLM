@@ -18,6 +18,18 @@ ALLOWED_INDICATORS = {"usd_krw", "wti", "gold", "base_rate"}
 ALLOWED_TIME_HORIZONS = {"short", "medium", "long"}
 ALLOWED_LEADING_INDICATORS = {"leading", "coincident", "lagging"}
 ALLOWED_GEO_SCOPES = {"global", "asia", "korea"}
+ALLOWED_ARTICLE_SCOPES = {
+    "korea",
+    "uk",
+    "europe",
+    "asia",
+    "middle_east",
+    "africa",
+    "americas",
+    "global",
+    "unknown",
+}
+ALLOWED_KOREA_RELEVANCE = {"direct", "indirect", "none"}
 
 # 구 LLM/스키마에서 쓰이던 영어 라벨 → 현재 DB 코드
 LEGACY_ENGLISH_CATEGORY_ALIASES: dict[str, str] = {
@@ -144,6 +156,8 @@ def normalize_causal(raw_causal: dict[str, Any], categories: list[str] | list[di
         "buffer": str(out.get("buffer") or "").strip(),
         "leading_indicator": _normalize_enum(out.get("leading_indicator"), ALLOWED_LEADING_INDICATORS),
         "geo_scope": _normalize_enum(out.get("geo_scope"), ALLOWED_GEO_SCOPES),
+        "article_scope": _normalize_enum(out.get("article_scope"), ALLOWED_ARTICLE_SCOPES),
+        "korea_relevance": _normalize_enum(out.get("korea_relevance"), ALLOWED_KOREA_RELEVANCE),
     }
     return CausalResult.model_validate(normalized).model_dump()
 

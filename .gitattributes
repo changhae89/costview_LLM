@@ -1,0 +1,4 @@
+# Text files: UTF-8 in working tree; normalize line endings on checkout where applicable.
+* text=auto
+
+validation_plan/** text eol=lf

@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from prd.db.supabase_store import (
+    count_pending_news_sb,
     fetch_active_cost_categories_sb,
     fetch_analysis_history_sb,
     fetch_indicators_by_date_sb,
@@ -20,6 +21,9 @@ from prd.db.supabase_store import (
 class SupabaseRepository:
     def __init__(self, client: Any) -> None:
         self._sb = client
+
+    def count_pending_news(self) -> int:
+        return count_pending_news_sb(self._sb)
 
     def fetch_pending_news(self, limit: int) -> list[dict]:
         return fetch_pending_news_sb(self._sb, limit=limit)

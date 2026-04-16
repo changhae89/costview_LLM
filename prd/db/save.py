@@ -4,8 +4,13 @@ from __future__ import annotations
 
 
 def save_analysis_result(connection, raw_news_id: str, result: dict) -> None:
-    """Insert one analysis row and its causal effect rows in a single transaction."""
-    sql_analysis = """
+    """Upsert one analysis row and its causal effect rows in a single transaction.
+
+    If news_analyses already exists for raw_news_id, updates it and replaces
+    causal_chains. Otherwise inserts fresh rows.
+    """
+    sql_get = "SELECT id FROM news_analyses WHERE raw_news_id = %s LIMIT 1;"
+    sql_insert = """
         INSERT INTO news_analyses (
             raw_news_id, summary, reliability, related_indicators,
             reliability_reason, time_horizon, effect_chain,
@@ -14,6 +19,22 @@ def save_analysis_result(connection, raw_news_id: str, result: dict) -> None:
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         RETURNING id;
     """
+    sql_update = """
+        UPDATE news_analyses
+        SET summary            = %s,
+            reliability        = %s,
+            related_indicators = %s,
+            reliability_reason = %s,
+            time_horizon       = %s,
+            effect_chain       = %s,
+            buffer             = %s,
+            leading_indicator  = %s,
+            geo_scope          = %s,
+            updated_at         = NOW()
+        WHERE id = %s
+        RETURNING id;
+    """
+    sql_delete_chains = "DELETE FROM causal_chains WHERE news_analysis_id = %s;"
     sql_causal = """
         INSERT INTO causal_chains
             (news_analysis_id, event, mechanism,
@@ -23,25 +44,33 @@ def save_analysis_result(connection, raw_news_id: str, result: dict) -> None:
     """
 
     try:
+        import json as _json
+        effect_chain = result.get("effect_chain") or []
+        effect_chain_json = _json.dumps(effect_chain, ensure_ascii=False)
+        common_fields = (
+            result.get("summary", ""),
+            float(result.get("reliability", 0.85)),
+            result.get("related_indicators") or [],
+            result.get("reliability_reason") or "",
+            result.get("time_horizon"),
+            effect_chain_json,
+            result.get("buffer") or "",
+            result.get("leading_indicator"),
+            result.get("geo_scope"),
+        )
+
         with connection.cursor() as cursor:
-            import json as _json
-            effect_chain = result.get("effect_chain") or []
-            cursor.execute(
-                sql_analysis,
-                (
-                    raw_news_id,
-                    result.get("summary", ""),
-                    float(result.get("reliability", 0.85)),
-                    result.get("related_indicators") or [],
-                    result.get("reliability_reason") or "",
-                    result.get("time_horizon"),
-                    _json.dumps(effect_chain, ensure_ascii=False),
-                    result.get("buffer") or "",
-                    result.get("leading_indicator"),
-                    result.get("geo_scope"),
-                ),
-            )
-            analysis_id = cursor.fetchone()[0]
+            cursor.execute(sql_get, (raw_news_id,))
+            row = cursor.fetchone()
+
+        with connection.cursor() as cursor:
+            if row:
+                analysis_id = row[0]
+                cursor.execute(sql_update, (*common_fields, analysis_id))
+                cursor.execute(sql_delete_chains, (analysis_id,))
+            else:
+                cursor.execute(sql_insert, (raw_news_id, *common_fields))
+                analysis_id = cursor.fetchone()[0]
 
         with connection.cursor() as cursor:
             for effect in result.get("effects", []):

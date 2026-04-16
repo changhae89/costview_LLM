@@ -4,11 +4,25 @@ from __future__ import annotations
 
 from datetime import date as DateType
 
-import psycopg2.extras
+from psycopg.rows import dict_row
+
+
+def count_pending_news(connection) -> int:
+    """Count rows that fetch_pending_news would return (same filters)."""
+    sql = """
+        SELECT COUNT(*)::bigint
+        FROM raw_news rn
+        WHERE COALESCE(rn.is_deleted, false) = false
+          AND rn.processing_status IS NULL;
+    """
+    with connection.cursor() as cursor:
+        cursor.execute(sql)
+        row = cursor.fetchone()
+        return int(row[0]) if row and row[0] is not None else 0
 
 
 def fetch_pending_news(connection, *, limit: int = 10) -> list[dict]:
-    """Fetch unprocessed raw news rows up to limit (no processing flag, not deleted, not failed 3+ times)."""
+    """Fetch unprocessed raw news rows up to limit (excludes failed/skipped/processed/processing/deleted)."""
     sql = """
         SELECT rn.id,
                rn.news_url AS url,
@@ -19,14 +33,12 @@ def fetch_pending_news(connection, *, limit: int = 10) -> list[dict]:
                rn.created_at,
                rn.keyword
         FROM raw_news rn
-        WHERE NOT EXISTS (SELECT 1 FROM news_analyses na WHERE na.raw_news_id = rn.id)
-          AND COALESCE(rn.is_deleted, false) = false
-          AND COALESCE(rn.processing_status, 'pending') != 'processing'
-          AND COALESCE(rn.retry_count, 0) < 3
+        WHERE COALESCE(rn.is_deleted, false) = false
+          AND rn.processing_status IS NULL
         ORDER BY rn.origin_published_at ASC
         LIMIT %s;
     """
-    with connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cursor:
+    with connection.cursor(row_factory=dict_row) as cursor:
         cursor.execute(sql, (limit,))
         return [dict(row) for row in cursor.fetchall()]
 
@@ -39,7 +51,7 @@ def fetch_active_cost_categories(connection) -> list[dict]:
         WHERE is_active = true
         ORDER BY sort_order ASC, code ASC;
     """
-    with connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cursor:
+    with connection.cursor(row_factory=dict_row) as cursor:
         cursor.execute(sql)
         return [dict(row) for row in cursor.fetchall() if str(row.get("code", "")).strip()]
 
@@ -87,7 +99,7 @@ def fetch_analysis_history(
         ORDER BY rn.origin_published_at DESC NULLS LAST, na.created_at DESC
         LIMIT %s;
     """
-    with connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cursor:
+    with connection.cursor(row_factory=dict_row) as cursor:
         cursor.execute(
             sql,
             (
@@ -110,7 +122,7 @@ def fetch_indicators_by_date(connection, *, reference_date: str) -> dict:
         cursor.execute(sql, params)
         return [(row["month"], float(row["value"])) for row in cursor.fetchall()]
 
-    with connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cursor:
+    with connection.cursor(row_factory=dict_row) as cursor:
         _series(cursor, """
             SELECT to_char(date_trunc('month', reference_date), 'YYYY-MM') AS month,
                    AVG(krw_usd_rate) AS value

@@ -11,6 +11,18 @@ Indicator = Literal["usd_krw", "wti", "gold", "base_rate"]
 TimeHorizon = Literal["short", "medium", "long"]
 LeadingIndicatorType = Literal["leading", "coincident", "lagging"]
 GeoScope = Literal["global", "asia", "korea"]
+ArticleScope = Literal[
+    "korea",
+    "uk",
+    "europe",
+    "asia",
+    "middle_east",
+    "africa",
+    "americas",
+    "global",
+    "unknown",
+]
+KoreaRelevance = Literal["direct", "indirect", "none"]
 
 
 class CausalEffect(BaseModel):
@@ -34,6 +46,8 @@ class CausalResult(BaseModel):
     buffer: str = Field(default="")
     leading_indicator: LeadingIndicatorType | None = None
     geo_scope: GeoScope | None = None
+    article_scope: ArticleScope | None = None
+    korea_relevance: KoreaRelevance | None = None
 
 
 class NewsAnalysisResult(CausalResult):
