@@ -14,6 +14,11 @@ Use dedicated tools instead of shell equivalents:
 | Search content | `Grep` | `grep`, `rg` via Bash |
 | Run commands / tests | `Bash` | — |
 
+## Response Style
+
+- **Length**: 300자 이내로 간결하게 답변한다.
+- **Format**: 수치 비교는 표, 흐름 설명은 도형/다이어그램, 시각 요소를 적극 활용한다.
+
 ## Behavior Constraints
 
 - **Scope**: change only what the task requires — no unrelated refactors, no drive-by formatting, no new docs unless asked.
