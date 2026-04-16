@@ -133,6 +133,11 @@ Agents should **run the relevant commands above** (or explain why they cannot, e
 - Relevant **pytest / Jest / Vitest** suite passes locally; same-repo PRs / pushes should pass **`ci.yml`** (Expo + costview_LLM always; backend when `DATABASE_URL` secret exists).
 - No new hardcoded secrets or production URLs.
 
+## Response Style
+
+- **Length**: 답변은 300자 이내로 간결하게 작성한다.
+- **Format**: 수치 비교는 표, 흐름 설명은 도형/다이어그램 등 시각 요소를 적극 활용한다.
+
 ## Working agreement
 
 - Prefer shared rules in this file over duplicating long instructions in tool-specific configs.

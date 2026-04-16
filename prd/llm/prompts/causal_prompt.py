@@ -60,8 +60,29 @@ def _build_example_json() -> str:
         "]"
         "}}"
     )
+    neutral_example = (
+        "{{"
+        '"event":"산유국 회의에서 증산 논의됐으나 합의 불발",'
+        '"mechanism":"공급 전망 불확실성이 커졌으나 실제 공급량 변화 없어 소비자 연료비 영향 미미",'
+        '"related_indicators":["wti"],'
+        '"reliability":0.55,'
+        '"reliability_reason":"합의 불발로 실질 공급 변화 없음. 가격 영향 불확실",'
+        '"time_horizon":"short",'
+        '"effect_chain":["증산 합의 불발","공급 불확실성","연료비 소폭 변동 가능성"],'
+        '"buffer":"실제 공급량 변화 없음",'
+        '"leading_indicator":"leading",'
+        '"geo_scope":"global",'
+        '"article_scope":"global",'
+        '"korea_relevance":"indirect",'
+        '"effects":['
+        '{{"category":"fuel","direction":"neutral","magnitude":"low","change_pct_min":0,"change_pct_max":0,"monthly_impact":0}}'
+        "]"
+        "}}"
+    )
     return (
-        "cost_signal:up 예시:\n" + up_example + "\n\ncost_signal:down 예시:\n" + down_example
+        "cost_signal:up 예시:\n" + up_example
+        + "\n\ncost_signal:down 예시:\n" + down_example
+        + "\n\ncost_signal:up이지만 효과 미미 → neutral 예시:\n" + neutral_example
     )
 
 
@@ -120,17 +141,22 @@ def build_causal_prompt(categories: list[dict]) -> ChatPromptTemplate:
         23. 선택적 소비 또는 자산 가치만 변한다고 보이면 effects는 빈 배열로 둡니다.
         24. "가격이 내려가면 생활비가 줄 수 있다" 같은 일반론만으로는 effects를 만들지 않습니다.
         25. 자동차 판매 가격 경쟁, 딜러 매장 경쟁, car forecourt/forecourts 문맥은 연료비 하락으로 해석하지 않습니다.
-        26. 현재 뉴스 압축 노트의 cost_signal을 반드시 확인하고 effects의 direction과 일치시킵니다.
-            - cost_signal: up   → direction: up
-            - cost_signal: down → direction: down
+        26. 현재 뉴스 압축 노트의 cost_signal을 참고하되, 효과 크기를 먼저 판단합니다.
             - cost_signal: none → effects: []
+            - cost_signal: up/down이라도 아래 neutral 조건에 해당하면 direction: neutral을 사용합니다.
+            - cost_signal: up/down이고 효과가 명확히 2% 이상 예상될 때만 up/down을 사용합니다.
         27. 공급 증가, 가격 하락, 정부 보조 확대, 세금 인하, 재고 증가, 수요 감소 뉴스는 direction: down을 적극 사용합니다.
-        28. 상반된 힘이 서로 상쇄되거나 효과가 2% 미만으로 미미하면 direction: neutral, magnitude: low를 사용합니다.
+        28. 아래 중 하나라도 해당하면 direction: neutral, magnitude: low를 사용합니다.
+            - 기사에 구체적인 수치나 변화폭이 언급되지 않은 경우
+            - 상반된 힘이 동시에 언급되어 효과가 상쇄될 가능성이 있는 경우
+            - 효과가 간접적이거나 2단계 이상 거쳐야 소비자에게 도달하는 경우
+            - reliability가 0.7 미만으로 확신이 낮은 경우
+            - 정책 논의, 경고, 전망 기사이며 실제 가격 변화가 아직 발생하지 않은 경우
 
         direction 기준 (월간 변화율 R 기준):
-        - neutral: |R| < 2% (변화가 미미하거나 상쇄되는 경우)
-        - up / down: |R| >= 2%
-        - 확신이 없거나 효과가 미미할 것으로 판단되면 neutral을 선택합니다.
+        - neutral: |R| < 2% (변화가 미미하거나 상쇄되는 경우) — 실제로 뉴스 효과의 절반 이상이 여기에 해당합니다.
+        - up / down: |R| >= 2% — 기사에 명확한 수치 근거가 있을 때만 사용합니다.
+        - 확신이 없으면 반드시 neutral을 선택합니다. up/down은 근거가 명확할 때만 씁니다.
 
         magnitude 기준:
         - low: 0~2%

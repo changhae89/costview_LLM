@@ -1,7 +1,7 @@
 """Scoring logic for validation backtest.
 
 Scoring per chain:
-  1. direction  — binary (1.0 / 0.0)
+  1. direction  — partial credit (1.0 hit / 0.5 pred≠neutral but actual=neutral / 0.0 opposite)
   2. magnitude  — partial credit (1.0 exact / 0.5 adjacent / 0.0 two apart)
   3. change_pct — binary (1.0 / 0.0), skipped (None) when both bounds are NULL
 
@@ -54,7 +54,13 @@ def _realized_magnitude(r: float) -> str:
 
 
 def score_direction(model_dir: str, r: float) -> float:
-    return 1.0 if model_dir == _realized_direction(r) else 0.0
+    realized = _realized_direction(r)
+    if model_dir == realized:
+        return 1.0
+    # 실제가 neutral이면 방향이 완전히 반대는 아니므로 partial credit
+    if realized == "neutral":
+        return 0.5
+    return 0.0
 
 
 def score_magnitude(model_mag: str, r: float) -> float:
