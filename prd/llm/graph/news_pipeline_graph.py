@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import time
 from typing import Any, TypedDict
 
 from langgraph.graph import END, START, StateGraph
@@ -12,9 +13,7 @@ from prd.llm.chains.causal_normalizer import (
 )
 from prd.llm.chains.category_registry import CATEGORY_FALLBACK_MAP, build_english_fallback_map
 from prd.llm.chains.history_builder import build_history_context
-from prd.llm.chains.llm_runner import run_causal_chain, run_repair_chain, run_summary_chain
-
-MAX_REPAIR_ATTEMPTS = 3
+from prd.llm.chains.llm_runner import run_causal_chain, run_summary_chain
 
 _KOREAN_ECONOMIC_KEYWORDS: frozenset[str] = frozenset(CATEGORY_FALLBACK_MAP.keys())
 
@@ -29,6 +28,64 @@ _ENGLISH_ECONOMIC_KEYWORDS_STRICT: frozenset[str] = frozenset({
     "freight", "logistics",                                   # shipping
     "inflation", "deflation", "stagflation", "cpi",           # price/inflation
 })
+
+_KOREAN_DIRECT_COST_KEYWORDS: frozenset[str] = frozenset({
+    "연료비", "기름값", "휘발유", "경유", "주유", "유류세",
+    "전기요금", "가스요금", "공공요금", "난방비", "전기료", "가스비",
+    "식비", "식품", "식료품", "곡물", "원자재", "물가", "인플레이션",
+    "운송비", "물류", "해운", "택배비", "통신비", "세금 인상", "세금 인하",
+    "공급 차질", "공급 부족", "생필품",
+})
+
+_ENGLISH_DIRECT_COST_KEYWORDS: frozenset[str] = frozenset({
+    "petrol", "gasoline", "diesel", "fuel duty", "petrol duty", "gas bill",
+    "electricity bill", "utility bill", "heating bill", "consumer prices",
+    "cost of living", "freight", "shipping costs", "logistics costs",
+    "supply shortage", "supply disruption", "food distribution",
+    "grocery prices", "food prices", "tax rise", "duty cut", "duty increase",
+    # 추가: 소비자 직접 체감 가능한 에너지/연료 비용
+    "energy bill", "energy bills", "energy cost", "energy costs",
+    "fuel price", "fuel prices", "fuel cost",
+    "petrol price", "petrol prices",
+    "household bills", "living costs",
+    # 유가 급등/하락은 휘발유 가격에 직접 영향
+    "oil price", "oil prices",
+    # 원유 선물/공급 동향 → 휘발유·난방유 가격 선행지표
+    "crude oil", "crude futures", "oil futures", "oil supply", "oil demand",
+    "brent crude", "wti crude",
+    # 에너지 가격 단독 형태 (gas bill, electricity bill 묶음 외)
+    "gas prices", "gas price", "electricity prices", "electricity price",
+    "power prices", "energy supplier", "utility prices",
+    # 식품 가격
+    "food price", "food prices", "grocery price",
+})
+
+_ENGLISH_MARKET_TOPIC_KEYWORDS: frozenset[str] = frozenset({
+    "ftse", "nasdaq", "dow", "stocks", "shares", "shareholders", "investors",
+    "broker", "rating", "buy", "sell", "profits", "earnings", "results",
+    "blue chip", "market", "equities", "bid", "takeover", "telecom stocks",
+})
+
+_LIVE_BLOG_TITLE_PATTERNS: tuple[str, ...] = (
+    "as it happened",
+    "business live",
+    "live updates",
+    "live blog",
+    "daily briefing",
+    "morning wrap",
+    "evening wrap",
+    "weekly wrap",
+)
+
+_SUMMARY_GROUNDING_KEYWORDS: tuple[str, ...] = (
+    "inflation",
+    "cpi",
+    "consumer prices",
+    "cost of living",
+    "물가",
+    "인플레이션",
+    "생활비",
+)
 
 
 class NewsState(TypedDict, total=False):
@@ -58,42 +115,99 @@ def _has_economic_signal(text: str, *, korean_count: int) -> bool:
     return False  # 키워드 매칭 없으면 skip
 
 
-def _append_trace(state: NewsState, node: str, *, llm: bool, detail: str) -> list[dict[str, Any]]:
+def _has_direct_consumer_cost_signal(text: str, *, korean_count: int) -> bool:
+    if any(kw in text for kw in _KOREAN_DIRECT_COST_KEYWORDS):
+        return True
+    if korean_count < 30:
+        normalized_text = re.sub(r"\s+", " ", text)
+        if any(kw in normalized_text for kw in _ENGLISH_DIRECT_COST_KEYWORDS):
+            return True
+        words = set(re.findall(r"\b[a-z]+\b", normalized_text))
+        return bool(words & _ENGLISH_DIRECT_COST_KEYWORDS)
+    return False
+
+
+def _append_trace(state: NewsState, node: str, *, llm: bool, detail: str, elapsed: float | None = None) -> list[dict[str, Any]]:
     trace = list(state.get("trace") or [])
-    trace.append(
-        {
-            "node": node,
-            "llm": llm,
-            "detail": detail,
-        }
-    )
+    item: dict[str, Any] = {"node": node, "llm": llm, "detail": detail}
+    if elapsed is not None:
+        item["elapsed"] = round(elapsed, 2)
+    trace.append(item)
     return trace
+
+
+def _extract_summary_field(summary: str, field_name: str) -> str:
+    pattern = rf"(?im)^{re.escape(field_name)}:\s*(.+)$"
+    match = re.search(pattern, summary or "")
+    return match.group(1).strip() if match else ""
+
+
+def _summary_has_minimum_format(summary: str) -> bool:
+    required = ("event", "cost_signal", "facts", "consumer_link")
+    return all(_extract_summary_field(summary, field) for field in required)
+
+
+def _summary_has_grounding_issue(content: str, summary: str) -> bool:
+    content_lower = (content or "").lower()
+    summary_lower = (summary or "").lower()
+
+    # 숫자 일치 체크 제거: LLM이 단위 변환($→p, gallon→litre 등)하면 오탐 발생
+    # 키워드 기반 체크만 유지: 요약에 inflation/CPI 등이 등장했는데 기사에 전혀 없으면 hallucination
+    if any(keyword in summary_lower for keyword in _SUMMARY_GROUNDING_KEYWORDS):
+        if not any(keyword in content_lower for keyword in _SUMMARY_GROUNDING_KEYWORDS):
+            return True
+
+    return False
+
+
+def _count_phrase_hits(text: str, phrases: frozenset[str]) -> int:
+    normalized = re.sub(r"\s+", " ", (text or "").lower())
+    return sum(1 for phrase in phrases if phrase in normalized)
+
+
+def _cost_signal_is_core_topic(title: str, content: str, summary: str) -> bool:
+    title_lower = (title or "").lower()
+    lead_lower = (content or "")[:1200].lower()
+    summary_lower = (summary or "").lower()
+
+    title_cost_hits = _count_phrase_hits(title_lower, _ENGLISH_DIRECT_COST_KEYWORDS)
+    lead_cost_hits = _count_phrase_hits(lead_lower, _ENGLISH_DIRECT_COST_KEYWORDS)
+    title_market_hits = _count_phrase_hits(title_lower, _ENGLISH_MARKET_TOPIC_KEYWORDS)
+    lead_market_hits = _count_phrase_hits(lead_lower, _ENGLISH_MARKET_TOPIC_KEYWORDS)
+    summary_cost_hits = _count_phrase_hits(summary_lower, _ENGLISH_DIRECT_COST_KEYWORDS)
+
+    if title_cost_hits > 0:
+        return True
+    if lead_cost_hits >= 1 and title_market_hits == 0 and lead_market_hits <= 1:
+        return True
+    if summary_cost_hits > 0 and lead_cost_hits > title_market_hits + lead_market_hits:
+        return True
+    return False
+
+
+def _skip_from_summary(summary: str, event: str, reason: str) -> dict[str, Any]:
+    return {
+        "summary": summary,
+        "result": {
+            "summary": summary,
+            "event": event,
+            "mechanism": "",
+            "related_indicators": [],
+            "reliability": 0.0,
+            "reliability_reason": reason,
+            "effects": [],
+            "_skip": True,
+        },
+    }
 
 
 def pre_filter_node(state: NewsState) -> NewsState:
     news = state["news"]
+    started_at = time.perf_counter()
 
-    # When caller explicitly scopes categories, skip content-based pre-filter
-    if news.get("allowed_categories"):
-        return {
-            "stage": "pre_filter",
-            "trace": _append_trace(
-                state,
-                "pre_filter",
-                llm=False,
-                detail="result=pass(categories_provided)",
-            ),
-        }
-
-    text = ((news.get("title") or "") + " " + (news.get("content") or "")).lower()
-    korean_count = _korean_char_count(text)
-    economic = _has_economic_signal(text, korean_count=korean_count)
-
-    db_keywords = set(build_english_fallback_map().keys())
-    news_keywords = {str(k).lower().strip() for k in (news.get("keyword") or [])}
-    keyword_match = bool(news_keywords & db_keywords)
-
-    if korean_count < 30 and not economic and not keyword_match:
+    title_lower = (news.get("title") or "").lower()
+    if any(pattern in title_lower for pattern in _LIVE_BLOG_TITLE_PATTERNS):
+        elapsed = time.perf_counter() - started_at
         return {
             "result": {
                 "summary": "",
@@ -101,6 +215,7 @@ def pre_filter_node(state: NewsState) -> NewsState:
                 "mechanism": "",
                 "related_indicators": [],
                 "reliability": 0.0,
+                "reliability_reason": "Live blog / rolling news article filtered before LLM.",
                 "effects": [],
                 "_skip": True,
             },
@@ -109,7 +224,65 @@ def pre_filter_node(state: NewsState) -> NewsState:
                 state,
                 "pre_filter",
                 llm=False,
+                elapsed=elapsed,
+                detail=f"result=skip(live_blog) title={title_lower[:60]}",
+            ),
+        }
+
+    text = (title_lower + " " + (news.get("content") or "").lower())
+    korean_count = _korean_char_count(text)
+    economic = _has_economic_signal(text, korean_count=korean_count)
+    direct_cost = _has_direct_consumer_cost_signal(text, korean_count=korean_count)
+
+    db_keywords = set(build_english_fallback_map().keys())
+    news_keywords = {str(k).lower().strip() for k in (news.get("keyword") or [])}
+    keyword_match = bool(news_keywords & db_keywords)
+    elapsed = time.perf_counter() - started_at
+
+    if not economic and not keyword_match:
+        return {
+            "result": {
+                "summary": "",
+                "event": "",
+                "mechanism": "",
+                "related_indicators": [],
+                "reliability": 0.0,
+                "reliability_reason": "No economic signal detected before LLM stage.",
+                "effects": [],
+                "_skip": True,
+            },
+            "stage": "pre_filter",
+            "trace": _append_trace(
+                state,
+                "pre_filter",
+                llm=False,
+                elapsed=elapsed,
                 detail=f"result=skip(non_economic) korean_chars={korean_count}",
+            ),
+        }
+
+    if news.get("allowed_categories") and not direct_cost and not keyword_match:
+        return {
+            "result": {
+                "summary": "",
+                "event": "",
+                "mechanism": "",
+                "related_indicators": [],
+                "reliability": 0.0,
+                "reliability_reason": "No direct consumer-cost signal detected in scoped run.",
+                "effects": [],
+                "_skip": True,
+            },
+            "stage": "pre_filter",
+            "trace": _append_trace(
+                state,
+                "pre_filter",
+                llm=False,
+                elapsed=elapsed,
+                detail=(
+                    f"result=skip(no_direct_cost_signal) korean_chars={korean_count} "
+                    f"economic={economic} keyword_match={keyword_match}"
+                ),
             ),
         }
 
@@ -119,7 +292,11 @@ def pre_filter_node(state: NewsState) -> NewsState:
             state,
             "pre_filter",
             llm=False,
-            detail=f"result=pass korean_chars={korean_count} economic={economic} keyword_match={keyword_match}",
+            elapsed=elapsed,
+            detail=(
+                f"result=pass korean_chars={korean_count} economic={economic} "
+                f"direct_cost={direct_cost} keyword_match={keyword_match}"
+            ),
         ),
     }
 
@@ -130,10 +307,102 @@ def route_after_pre_filter(state: NewsState) -> str:
 
 async def summarize_node(state: NewsState) -> NewsState:
     news = state["news"]
-    content = news.get("content") or news.get("title", "")
+    news_id = str(news.get("id") or "")
+    title = news.get("title", "")
+    content = news.get("content") or title
     if not content:
         raise ValueError("News content is empty.")
-    summary = await run_summary_chain(content)
+    started_at = time.perf_counter()
+    summary = await run_summary_chain(content, news_id=news_id)
+    grounding_issue = _summary_has_grounding_issue(content, summary)
+    elapsed = time.perf_counter() - started_at
+    print(f"[summarize][news_id={news_id}] elapsed={elapsed:.2f}s")
+    consumer_link = _extract_summary_field(summary, "consumer_link").lower()
+    cost_signal = _extract_summary_field(summary, "cost_signal").lower()
+    event = _extract_summary_field(summary, "event")
+    has_minimum_format = _summary_has_minimum_format(summary)
+
+    if grounding_issue:
+        return {
+            **_skip_from_summary(
+                summary,
+                event,
+                "LLM1 summary was not grounded in the source article.",
+            ),
+            "stage": "summarize",
+            "trace": _append_trace(
+                state,
+                "summarize",
+                llm=True,
+                elapsed=elapsed,
+                detail=(
+                    f"input=raw_news.content result=skip "
+                    f"format={'ok' if has_minimum_format else 'broken'} "
+                    f"consumer_link={consumer_link or 'missing'} "
+                    f"cost_signal={cost_signal or 'missing'} grounding=failed"
+                ),
+            ),
+        }
+    if not has_minimum_format:
+        return {
+            **_skip_from_summary(
+                summary,
+                event,
+                "LLM1 returned a broken summary format.",
+            ),
+            "stage": "summarize",
+            "trace": _append_trace(
+                state,
+                "summarize",
+                llm=True,
+                elapsed=elapsed,
+                detail=(
+                    f"input=raw_news.content result=skip "
+                    f"format=broken "
+                    f"consumer_link={consumer_link or 'missing'} cost_signal={cost_signal or 'missing'}"
+                ),
+            ),
+        }
+    if consumer_link != "yes":
+        return {
+            **_skip_from_summary(
+                summary,
+                event,
+                "LLM1 judged the article unrelated to consumer cost impact.",
+            ),
+            "stage": "summarize",
+            "trace": _append_trace(
+                state,
+                "summarize",
+                llm=True,
+                elapsed=elapsed,
+                detail=(
+                    f"input=raw_news.content result=skip "
+                    f"format=ok consumer_link={consumer_link or 'missing'} "
+                    f"cost_signal={cost_signal or 'missing'}"
+                ),
+            ),
+        }
+    if cost_signal not in {"up", "down"}:
+        return {
+            **_skip_from_summary(
+                summary,
+                event,
+                "LLM1 did not provide a usable cost signal.",
+            ),
+            "stage": "summarize",
+            "trace": _append_trace(
+                state,
+                "summarize",
+                llm=True,
+                elapsed=elapsed,
+                detail=(
+                    f"input=raw_news.content result=skip "
+                    f"format=ok consumer_link={consumer_link} "
+                    f"cost_signal={cost_signal or 'missing'}"
+                ),
+            ),
+        }
     return {
         "summary": summary,
         "stage": "summarize",
@@ -141,14 +410,21 @@ async def summarize_node(state: NewsState) -> NewsState:
             state,
             "summarize",
             llm=True,
-            detail="input=raw_news.content",
+            elapsed=elapsed,
+            detail=(
+                f"input=raw_news.content result=pass "
+                f"format={'ok' if has_minimum_format else 'broken'} "
+                f"consumer_link={consumer_link or 'missing'} cost_signal={cost_signal or 'missing'}"
+            ),
         ),
     }
 
 
 def build_history_context_node(state: NewsState) -> NewsState:
     news = state["news"]
+    news_id = str(news.get("id") or "")
     repo = news.get("_repo")
+    started_at = time.perf_counter()
     if repo is not None:
         history_items = repo.fetch_analysis_history(
             current_news_id=news["id"],
@@ -160,6 +436,8 @@ def build_history_context_node(state: NewsState) -> NewsState:
         history_items = news.get("history_items") or []
 
     history_context = build_history_context(history_items)
+    elapsed = time.perf_counter() - started_at
+    print(f"[history][news_id={news_id}] elapsed={elapsed:.2f}s items={len(history_items)}")
     return {
         "history_context": history_context,
         "stage": "build_history_context",
@@ -167,15 +445,19 @@ def build_history_context_node(state: NewsState) -> NewsState:
             state,
             "build_history_context",
             llm=False,
-            detail="db=news_analyses+causal_chains",
+            elapsed=elapsed,
+            detail=f"db=news_analyses+causal_chains items={len(history_items)}",
         ),
     }
 
 
 def build_indicator_context_node(state: NewsState) -> NewsState:
     news = state["news"]
+    news_id = str(news.get("id") or "")
     repo = news.get("_repo")
     published_at = news.get("published_at")
+    started_at = time.perf_counter()
+    indicator_loaded = False
     indicator_context = "데이터 없음"
 
     if repo is not None and published_at:
@@ -204,9 +486,13 @@ def build_indicator_context_node(state: NewsState) -> NewsState:
             if s := _fmt_series(indicators.get("fred_cpi") or []):
                 lines.append(f"미국 CPI:\n  {s}")
             indicator_context = "\n".join(lines)
+            indicator_loaded = True
         except Exception:
             pass
 
+    elapsed = time.perf_counter() - started_at
+    indicator_status = "loaded" if indicator_loaded else "none"
+    print(f"[indicator][news_id={news_id}] elapsed={elapsed:.2f}s loaded={indicator_status}")
     return {
         "indicator_context": indicator_context,
         "stage": "build_indicator_context",
@@ -214,19 +500,25 @@ def build_indicator_context_node(state: NewsState) -> NewsState:
             state,
             "build_indicator_context",
             llm=False,
-            detail=f"indicators={'loaded' if indicator_context != '데이터 없음' else 'none'}",
+            elapsed=elapsed,
+            detail=f"indicators={indicator_status}",
         ),
     }
 
 
 async def extract_causal_node(state: NewsState) -> NewsState:
     news = state["news"]
+    news_id = str(news.get("id") or "")
+    started_at = time.perf_counter()
     causal_raw = await run_causal_chain(
         state["summary"],
         state.get("history_context", "없음"),
         categories=news.get("allowed_categories"),
         indicator_context=state.get("indicator_context", "데이터 없음"),
+        news_id=news_id,
     )
+    elapsed = time.perf_counter() - started_at
+    print(f"[extract_causal][news_id={news_id}] elapsed={elapsed:.2f}s")
     return {
         "causal_raw": causal_raw,
         "stage": "extract_causal",
@@ -234,17 +526,23 @@ async def extract_causal_node(state: NewsState) -> NewsState:
             state,
             "extract_causal",
             llm=True,
+            elapsed=elapsed,
             detail="input=summary+history_context+allowed_categories",
         ),
     }
 
 
 def validate_causal_node(state: NewsState) -> NewsState:
+    started_at = time.perf_counter()
     try:
         news = state["news"]
+        news_id = str(news.get("id") or "")
         causal_dict = parse_causal_json(state["causal_raw"])
         causal = normalize_causal(causal_dict, categories=news.get("allowed_categories"))
+
         if not causal.get("effects"):
+            elapsed = time.perf_counter() - started_at
+            print(f"[validate][news_id={news_id}] elapsed={elapsed:.2f}s result=skip(empty_effects)")
             return {
                 "result": {"summary": state["summary"], **causal, "_skip": True},
                 "error": "",
@@ -253,11 +551,14 @@ def validate_causal_node(state: NewsState) -> NewsState:
                     state,
                     "validate_causal",
                     llm=False,
+                    elapsed=elapsed,
                     detail="result=skip(empty_effects)",
                 ),
             }
         validate_causal_result(causal)
         result = {"summary": state["summary"], **causal}
+        elapsed = time.perf_counter() - started_at
+        print(f"[validate][news_id={news_id}] elapsed={elapsed:.2f}s result=success")
         return {
             "causal": causal,
             "result": result,
@@ -267,12 +568,16 @@ def validate_causal_node(state: NewsState) -> NewsState:
                 state,
                 "validate_causal",
                 llm=False,
+                elapsed=elapsed,
                 detail="result=success",
             ),
         }
     except Exception as exc:
-        print(f"[LLM2] parse error: {exc}")
-        print(f"[LLM2] raw output: {state.get('causal_raw', '')[:500]}")
+        elapsed = time.perf_counter() - started_at
+        news_id = str(state.get("news", {}).get("id") or "")
+        print(f"[validate][news_id={news_id}] elapsed={elapsed:.2f}s result=error")
+        print(f"[LLM2][news_id={news_id}] parse error: {exc}")
+        print(f"[LLM2][news_id={news_id}] raw_preview={state.get('causal_raw', '')[:200]}")
         return {
             "error": str(exc),
             "stage": "validate_causal",
@@ -280,36 +585,10 @@ def validate_causal_node(state: NewsState) -> NewsState:
                 state,
                 "validate_causal",
                 llm=False,
+                elapsed=elapsed,
                 detail=f"result=error error={exc}",
             ),
         }
-
-
-def route_after_validate_causal(state: NewsState) -> str:
-    if state.get("result") is not None:
-        return "done"
-    attempts = state.get("attempts") or 0
-    if attempts < MAX_REPAIR_ATTEMPTS:
-        return "repair"
-    return "done"
-
-
-async def repair_causal_node(state: NewsState) -> NewsState:
-    summary = state.get("summary", "")
-    causal_raw = state.get("causal_raw", "")
-    repaired = await run_repair_chain(summary, causal_raw)
-    attempts = (state.get("attempts") or 0) + 1
-    return {
-        "causal_raw": repaired,
-        "attempts": attempts,
-        "stage": "repair_causal",
-        "trace": _append_trace(
-            state,
-            "repair_causal",
-            llm=True,
-            detail=f"attempt={attempts}",
-        ),
-    }
 
 
 def build_news_pipeline():
@@ -334,14 +613,8 @@ def build_news_pipeline():
     )
     graph.add_edge("build_history_context", "build_indicator_context")
     graph.add_edge("build_indicator_context", "extract_causal")
-    graph.add_node("repair_causal", repair_causal_node)
     graph.add_edge("extract_causal", "validate_causal")
-    graph.add_conditional_edges(
-        "validate_causal",
-        route_after_validate_causal,
-        {"done": END, "repair": "repair_causal"},
-    )
-    graph.add_edge("repair_causal", "validate_causal")
+    graph.add_edge("validate_causal", END)
     return graph.compile()
 
 

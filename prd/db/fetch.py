@@ -7,8 +7,22 @@ from datetime import date as DateType
 from psycopg.rows import dict_row
 
 
+def count_pending_news(connection) -> int:
+    """Count rows that fetch_pending_news would return (same filters)."""
+    sql = """
+        SELECT COUNT(*)::bigint
+        FROM raw_news rn
+        WHERE COALESCE(rn.is_deleted, false) = false
+          AND rn.processing_status IS NULL;
+    """
+    with connection.cursor() as cursor:
+        cursor.execute(sql)
+        row = cursor.fetchone()
+        return int(row[0]) if row and row[0] is not None else 0
+
+
 def fetch_pending_news(connection, *, limit: int = 10) -> list[dict]:
-    """Fetch unprocessed raw news rows up to limit (no processing flag, not deleted, not failed 3+ times)."""
+    """Fetch unprocessed raw news rows up to limit (excludes failed/skipped/processed/processing/deleted)."""
     sql = """
         SELECT rn.id,
                rn.news_url AS url,
@@ -19,10 +33,8 @@ def fetch_pending_news(connection, *, limit: int = 10) -> list[dict]:
                rn.created_at,
                rn.keyword
         FROM raw_news rn
-        WHERE NOT EXISTS (SELECT 1 FROM news_analyses na WHERE na.raw_news_id = rn.id)
-          AND COALESCE(rn.is_deleted, false) = false
-          AND COALESCE(rn.processing_status, 'pending') != 'processing'
-          AND COALESCE(rn.retry_count, 0) < 3
+        WHERE COALESCE(rn.is_deleted, false) = false
+          AND rn.processing_status IS NULL
         ORDER BY rn.origin_published_at ASC
         LIMIT %s;
     """

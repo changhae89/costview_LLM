@@ -67,7 +67,7 @@ def test_run_validation_single_chain_full_hit(mock_cohort, mock_indicator):
     }
 
     conn = MagicMock()
-    chain_scores, analysis_scores = run_validation(conn, start="2025-01-01")
+    chain_scores, analysis_scores, _ = run_validation(conn, start="2025-01-01")
 
     assert len(chain_scores) == 1
     cs: ChainScore = chain_scores[0]
@@ -92,7 +92,7 @@ def test_run_validation_skips_unmapped_category(mock_cohort, mock_indicator):
     mock_indicator.return_value = {}
 
     conn = MagicMock()
-    chain_scores, analysis_scores = run_validation(conn, start="2025-01-01")
+    chain_scores, analysis_scores, _ = run_validation(conn, start="2025-01-01")
 
     assert chain_scores == []
     assert analysis_scores[0].eligible_chains == 0
@@ -109,7 +109,7 @@ def test_run_validation_skips_missing_m1(mock_cohort, mock_indicator):
     mock_indicator.return_value = {"2025-01-01": 212.88}  # M+1 없음
 
     conn = MagicMock()
-    chain_scores, analysis_scores = run_validation(conn, start="2025-01-01")
+    chain_scores, analysis_scores, _ = run_validation(conn, start="2025-01-01")
 
     assert chain_scores == []
     assert analysis_scores[0].skipped_chains == 1
@@ -140,7 +140,7 @@ def test_run_validation_method_b_aggregation(mock_cohort, mock_indicator):
     mock_indicator.side_effect = _indicator_side_effect
 
     conn = MagicMock()
-    chain_scores, analysis_scores = run_validation(conn, start="2025-01-01")
+    chain_scores, analysis_scores, _ = run_validation(conn, start="2025-01-01")
 
     assert len(chain_scores) == 2
     oil_cs   = next(c for c in chain_scores if c.category == "oil")
@@ -158,6 +158,6 @@ def test_run_validation_empty_cohort(mock_cohort):
     """조회 결과 없으면 빈 리스트 반환."""
     mock_cohort.return_value = []
     conn = MagicMock()
-    chain_scores, analysis_scores = run_validation(conn, start="2025-01-01")
+    chain_scores, analysis_scores, _ = run_validation(conn, start="2025-01-01")
     assert chain_scores    == []
     assert analysis_scores == []
