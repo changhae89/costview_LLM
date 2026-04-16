@@ -12,6 +12,7 @@ import json
 import os
 import sys
 import time
+import traceback
 from pathlib import Path
 
 if __package__ in (None, ""):
@@ -23,9 +24,28 @@ from prd.llm.graph.news_pipeline_graph import analyze_news
 
 # ── 실행 파라미터 ─────────────────────────────────────────────
 MAX_BATCH   = 10000  # 전체 처리할 최대 뉴스 수 (env: PRD_MAX_BATCH 로 override 가능)
-CONCURRENCY = 2      # 동시에 LLM 호출할 수 (1 = 순차, 5 = 5건 병렬)
+CONCURRENCY = 5      # 동시에 LLM 호출할 수 (1 = 순차, 5 = 5건 병렬)
 CHUNK_SIZE  = 100     # 한 번에 DB에서 가져올 건수
 # ─────────────────────────────────────────────────────────────
+
+
+class _TeeStream:
+    def __init__(self, *streams) -> None:
+        self._streams = streams
+        self.encoding = getattr(streams[0], "encoding", "utf-8") if streams else "utf-8"
+
+    def write(self, data: str) -> int:
+        for stream in self._streams:
+            stream.write(data)
+            stream.flush()
+        return len(data)
+
+    def flush(self) -> None:
+        for stream in self._streams:
+            stream.flush()
+
+    def isatty(self) -> bool:
+        return any(getattr(stream, "isatty", lambda: False)() for stream in self._streams)
 
 
 def _log(message: str) -> None:
@@ -79,6 +99,17 @@ def _llm_timing(trace: list[dict] | None) -> str:
     return " ".join(parts)
 
 
+def _configure_run_logging() -> Path:
+    logs_dir = Path(__file__).resolve().parent / "logs"
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    timestamp = time.strftime("%Y%m%d_%H%M%S")
+    log_path = logs_dir / f"prd_run_{timestamp}.log"
+    log_file = log_path.open("w", encoding="utf-8", buffering=1)
+    sys.stdout = _TeeStream(sys.stdout, log_file)
+    sys.stderr = _TeeStream(sys.stderr, log_file)
+    return log_path
+
+
 async def _process_one(news: dict, repo, allowed_categories: list[dict]) -> None:
     title_preview = (news.get("title") or "")[:45]
     news_id = news["id"]
@@ -122,16 +153,19 @@ async def _process_one(news: dict, repo, allowed_categories: list[dict]) -> None
             )
         else:
             _log(f"failed news_id={news_id} title={title_preview!r} error={error}")
+        traceback.print_exc()
         raise
 
 
 async def main() -> None:
+    log_path = _configure_run_logging()
     load_environment()
     max_batch = _get_runtime_int("PRD_MAX_BATCH", MAX_BATCH or get_max_batch())
     concurrency = _get_runtime_int("PRD_CONCURRENCY", CONCURRENCY or get_concurrency())
     chunk_size = _get_runtime_int("PRD_CHUNK_SIZE", CHUNK_SIZE)
 
     _log("start")
+    _log(f"Log file: {log_path}")
     _log(f"Max batch: {max_batch} / Concurrency: {concurrency} / Chunk size: {chunk_size}")
 
     repo = create_repository()
