@@ -133,6 +133,18 @@ Agents should **run the relevant commands above** (or explain why they cannot, e
 - Relevant **pytest / Jest / Vitest** suite passes locally; same-repo PRs / pushes should pass **`ci.yml`** (Expo + costview_LLM always; backend when `DATABASE_URL` secret exists).
 - No new hardcoded secrets or production URLs.
 
+## Git Workflow
+
+변경 작업 완료 시 반드시 아래 순서로 진행한다:
+
+1. **이슈 등록** — `gh issue create` (제목 + 작업 내용)
+2. **브랜치 생성** — `feature/<issue번호>-<설명>`
+3. **커밋** — `feat/fix: 설명 (#이슈번호)`
+4. **PR → dev 머지** — `gh pr create --base dev` → `gh pr merge`
+5. **PR → main 머지** — `gh pr create --base main --head dev` → `gh pr merge`
+6. **이슈 코멘트** — 변경 내용 정리 후 `gh issue comment`
+7. **이슈 close** — `gh issue close`
+
 ## Response Style
 
 - **Length**: 답변은 300자 이내로 간결하게 작성한다.
