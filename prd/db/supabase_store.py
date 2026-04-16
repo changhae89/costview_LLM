@@ -5,35 +5,48 @@ from __future__ import annotations
 from typing import Any
 
 
-def fetch_pending_news_sb(sb: Any, *, limit: int = 10) -> list[dict]:
-    """Fetch unprocessed raw news rows up to limit (no processing flag, not deleted, not failed 3+ times)."""
-    response = (
+def count_pending_news_sb(sb: Any) -> int:
+    """Count rows that fetch_pending_news_sb would return (same filters)."""
+    resp = (
         sb.table("raw_news")
-        .select("id,news_url,title,content,origin_published_at,created_at,keyword,processing_status,retry_count")
+        .select("id", count="exact", head=True)
         .or_("is_deleted.is.null,is_deleted.eq.false")
-        .order("created_at")
+        .is_("processing_status", "null")
         .execute()
     )
-    rows = [
-        row for row in (response.data or [])
-        if row.get("processing_status") != "processing"
-        and (row.get("retry_count") or 0) < 3
-    ]
-    if not rows:
-        return []
+    return int(resp.count or 0)
 
-    ids = [row["id"] for row in rows]
-    analyzed_ids: set[str] = set()
 
-    for index in range(0, len(ids), 100):
-        partial_ids = ids[index : index + 100]
-        analyses = sb.table("news_analyses").select("raw_news_id").in_("raw_news_id", partial_ids).execute()
-        for analysis in analyses.data or []:
-            raw_news_id = analysis.get("raw_news_id")
-            if raw_news_id is not None:
-                analyzed_ids.add(str(raw_news_id))
+def fetch_pending_news_sb(sb: Any, *, limit: int = 10) -> list[dict]:
+    """Fetch unprocessed raw news rows up to limit (processing_status IS NULL, not deleted).
 
-    pending_rows = [row for row in rows if str(row["id"]) not in analyzed_ids]
+    Paginates in batches of 1000 to work around Supabase server-side row limit.
+    """
+    PAGE_SIZE = 1000
+    collected: list[dict] = []
+    offset = 0
+
+    while len(collected) < limit:
+        fetch_count = min(PAGE_SIZE, limit - len(collected))
+        rows = (
+            sb.table("raw_news")
+            .select("id,news_url,title,content,origin_published_at,created_at,keyword")
+            .or_("is_deleted.is.null,is_deleted.eq.false")
+            .is_("processing_status", "null")
+            .order("origin_published_at")
+            .range(offset, offset + fetch_count - 1)
+            .execute()
+        ).data or []
+
+        if not rows:
+            break
+
+        collected.extend(rows)
+        offset += len(rows)
+
+        if len(rows) < fetch_count:
+            break
+
     return [
         {
             "id": row["id"],
@@ -45,7 +58,7 @@ def fetch_pending_news_sb(sb: Any, *, limit: int = 10) -> list[dict]:
             "created_at": row.get("created_at"),
             "keyword": row.get("keyword") or [],
         }
-        for row in pending_rows[:limit]
+        for row in collected
     ]
 
 

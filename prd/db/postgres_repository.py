@@ -2,13 +2,22 @@
 
 from __future__ import annotations
 
-from prd.db.fetch import fetch_active_cost_categories, fetch_analysis_history, fetch_indicators_by_date, fetch_pending_news
+from prd.db.fetch import (
+    count_pending_news,
+    fetch_active_cost_categories,
+    fetch_analysis_history,
+    fetch_indicators_by_date,
+    fetch_pending_news,
+)
 from prd.db.save import mark_as_failed, mark_as_processed, mark_as_processing, mark_as_skipped, save_analysis_result
 
 
 class PostgresRepository:
     def __init__(self, connection) -> None:
         self._conn = connection
+
+    def count_pending_news(self) -> int:
+        return count_pending_news(self._conn)
 
     def fetch_pending_news(self, limit: int) -> list[dict]:
         return fetch_pending_news(self._conn, limit=limit)

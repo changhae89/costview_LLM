@@ -24,6 +24,21 @@ CATEGORY_MAP: dict[str, tuple[str, str, str]] = {
     "cost":      ("indicator_kosis_monthly_logs", "core_cpi",                 "reference_date"),
 }
 
+# 카테고리별 키워드 (cost_categories.keywords 기반, 후속 뉴스 매칭용)
+CATEGORY_KEYWORDS: dict[str, list[str]] = {
+    "oil":       ["oil", "crude", "petroleum", "opec", "barrel"],
+    "fuel":      ["fuel", "gasoline", "petrol", "diesel"],
+    "gas":       ["gas", "natural gas", "lng", "lpg"],
+    "energy":    ["energy", "electricity", "power", "utility"],
+    "food":      ["food", "grocery", "meat", "dairy", "produce"],
+    "wheat":     ["wheat", "grain", "corn", "rice", "soybean"],
+    "commodity": ["commodity", "raw material", "iron", "steel", "cotton"],
+    "price":     ["price", "consumer price", "cpi"],
+    "inflation": ["inflation", "deflation", "stagflation"],
+    "cost":      ["cost", "living cost", "expense", "wage"],
+    "shipping":  ["shipping", "freight", "logistics", "supply chain", "port"],
+}
+
 # Allowlists used by db.py to prevent SQL injection via identifier interpolation
 _ALLOWED_TABLES: frozenset[str] = frozenset(t for t, _, _ in CATEGORY_MAP.values())
 _ALLOWED_COLUMNS: frozenset[str] = frozenset(c for _, c, _ in CATEGORY_MAP.values()) | {

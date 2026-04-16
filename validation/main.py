@@ -5,7 +5,11 @@
 """
 from __future__ import annotations
 
+import sys
 from pathlib import Path
+
+if __package__ in (None, ""):
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from dotenv import load_dotenv
 
@@ -13,7 +17,7 @@ import os
 
 import psycopg2
 
-from validation.runner import print_report, run_validation
+from validation.runner import print_combined_report, run_validation
 
 # validation/.env 우선, 루트 .env는 fallback
 _HERE = Path(__file__).resolve().parent
@@ -24,8 +28,11 @@ load_dotenv(_HERE / ".env", override=True)
 # -----------------------------------------------------------------------
 # 검증 기간 설정
 # -----------------------------------------------------------------------
-START_DATE = "1999-01-01"   # 시작일 (포함)
-END_DATE   = "2000-02-01"   # 종료일 (미포함) — None 이면 현재까지 전체
+START_DATE     = "1999-01-01"   # 시작일 (포함)
+END_DATE       = "2026-01-01"   # 종료일 (미포함) — None 이면 현재까지 전체
+# -----------------------------------------------------------------------
+# 시차 설정: config.py의 HORIZON_MONTHS 로 제어 (기본값 1 = M+1)
+# 변경 시 config.py 에서 HORIZON_MONTHS = 2 등으로 수정
 # -----------------------------------------------------------------------
 
 
@@ -45,12 +52,16 @@ def _get_connection():
 def main() -> None:
     conn = _get_connection()
     try:
-        chain_scores, analysis_scores = run_validation(
-            conn,
-            start=START_DATE,
-            end=END_DATE,
-        )
-        print_report(chain_scores, analysis_scores)
+        results = []
+        for h in [1, 2, 3]:
+            chain_scores, analysis_scores, keyword_stats = run_validation(
+                conn,
+                start=START_DATE,
+                end=END_DATE,
+                horizon=h,
+            )
+            results.append((chain_scores, analysis_scores, keyword_stats, h))
+        print_combined_report(results)
     finally:
         conn.close()
 

@@ -4,7 +4,7 @@ from langchain_core.prompts import ChatPromptTemplate
 
 
 def _build_category_block(categories: list[dict]) -> str:
-    items = categories or [{"code": "fuel", "name_ko": "주유비", "keywords": ["gasoline", "diesel"]}]
+    items = categories or [{"code": "fuel", "name_ko": "연료", "keywords": ["gasoline", "diesel"]}]
     result = []
     for cat in items:
         code = cat["code"]
@@ -22,22 +22,46 @@ def _build_category_text(categories: list[dict]) -> str:
 
 
 def _build_example_json() -> str:
-    return (
-        '{{'
-        '"event":"호르무즈 해협 긴장 고조",'
-        '"mechanism":"원유 운송 차질 우려로 국제 유가 상승 압력이 커짐",'
+    up_example = (
+        "{{"
+        '"event":"국제 유가 급등",'
+        '"mechanism":"원유 감산과 공급 불안으로 수입 가격이 올라 소비자 연료비 부담이 커짐",'
         '"related_indicators":["wti"],'
-        '"reliability":0.82,'
-        '"reliability_reason":"직접 가격 데이터 없음, 지정학적 리스크 간접 추론",'
+        '"reliability":0.84,'
+        '"reliability_reason":"기사에 원유 가격 급등과 소비자 부담 연결이 직접 언급됨",'
         '"time_horizon":"short",'
-        '"effect_chain":["호르무즈 해협 봉쇄 위험","국제 유가 상승","국내 유류비 상승"],'
-        '"buffer":"정부 유류세 인하로 소비자 부담 일부 완충 가능",'
+        '"effect_chain":["공급 불안","원유 가격 급등","소비자 연료비 상승"],'
+        '"buffer":"정부 보조금 가능성",'
         '"leading_indicator":"leading",'
         '"geo_scope":"global",'
+        '"article_scope":"global",'
+        '"korea_relevance":"indirect",'
         '"effects":['
-        '{{"category":"fuel","direction":"up","magnitude":"medium","change_pct_min":1.0,"change_pct_max":3.0,"monthly_impact":15000}}'
+        '{{"category":"fuel","direction":"up","magnitude":"medium","change_pct_min":2.0,"change_pct_max":5.0,"monthly_impact":15000}}'
         "]"
-        '}}'
+        "}}"
+    )
+    down_example = (
+        "{{"
+        '"event":"OPEC 증산 합의로 국제 유가 하락",'
+        '"mechanism":"공급 확대로 원유 수입가가 내려가 소비자 연료비 부담이 줄어듦",'
+        '"related_indicators":["wti"],'
+        '"reliability":0.82,'
+        '"reliability_reason":"기사에 증산 합의와 유가 하락, 소비자 연료비 인하 연결이 직접 언급됨",'
+        '"time_horizon":"short",'
+        '"effect_chain":["공급 확대","원유 가격 하락","소비자 연료비 하락"],'
+        '"buffer":"",'
+        '"leading_indicator":"leading",'
+        '"geo_scope":"global",'
+        '"article_scope":"global",'
+        '"korea_relevance":"indirect",'
+        '"effects":['
+        '{{"category":"fuel","direction":"down","magnitude":"medium","change_pct_min":-5.0,"change_pct_max":-2.0,"monthly_impact":-12000}}'
+        "]"
+        "}}"
+    )
+    return (
+        "cost_signal:up 예시:\n" + up_example + "\n\ncost_signal:down 예시:\n" + down_example
     )
 
 
@@ -48,49 +72,85 @@ def build_causal_prompt(categories: list[dict]) -> ChatPromptTemplate:
 
     system_prompt = dedent(
         f"""
-        당신은 과거 뉴스 아카이브를 분석하여 당시 소비자 생활비에 미쳤던 영향을 2단계 인과관계 JSON으로 추출하는 전문가입니다.
-        뉴스는 영어 또는 한국어로 작성되어 있을 수 있습니다.
-        목적은 역사적 사건이 생활비에 어떤 영향을 주었는지 데이터를 최대한 축적하는 것입니다.
+        당신은 소비자 생활비 영향 분석 결과를 구조화된 JSON으로 변환하는 모델입니다.
 
-        소비 카테고리:
+        입력:
+        - 현재 뉴스 압축 노트
+        - 기사 시점 경제지표 요약
+        - 과거 유사 기사 요약
+        - 허용된 생활비 카테고리
+
+        생활비 카테고리:
         {category_block}
 
-        magnitude 기준:
-        - low: 변동률 0~2% (간접·불확실 영향 포함)
-        - medium: 변동률 2~5%
-        - high: 변동률 5% 이상
+        목표:
+        - 생활비에 영향을 주는 직접 경로만 남깁니다.
+        - 기사 근거가 약하면 보수적으로 판단합니다.
+        - 반드시 유효한 JSON만 출력합니다.
 
-        규칙:
-        - monthly_impact는 월 체감 부담 변화의 대략적 추정치(원 단위 정수)입니다.
-        - 직접 영향뿐 아니라 간접 영향(전쟁 → 유가 → 연료비)도 magnitude: low로 포함하세요.
-        - 불확실하거나 간접적인 영향은 reliability를 낮게(0.4~0.6) 설정하고 effects에 포함하세요.
-        - 현재 뉴스 요약에 가격·비용·공급·운송·환율·원자재·인플레이션과의 직접 연결 근거가 없으면 effects=[]를 반환하세요.
-        - 기술 소개, 문화·정치·역사 기사, 개인 인물 기사, 제도 일반론은 생활비 영향이 없으므로 effects=[]로 반환하세요.
-        - "장기적으로 가능성 있음"만으로 효과를 추정하지 마세요. 현재 기사에 구체적 근거가 있어야 합니다.
-        - effects가 완전히 빈 배열이 되는 경우는 뉴스 내용이 생활비와 전혀 무관할 때만입니다.
-        - 영향이 없는 카테고리는 effects에 넣지 마세요.
-        - effects 배열에 동일한 category, direction, 수치 조합을 중복해서 넣지 마세요.
-        - related_indicators는 usd_krw, wti, gold, base_rate 중 해당되는 것만 사용하세요.
-        - event와 mechanism은 반드시 비워두지 말고 한 줄 문자열로 작성하세요.
-        - effects[].category / direction / magnitude 는 반드시 아래 값만 사용하세요.
+        핵심 규칙:
+        1. 반드시 순수 JSON만 출력합니다. 출력은 반드시 JSON 객체 시작 문자로 시작해야 합니다.
+           ```json, ```, 마크다운, 설명 텍스트를 절대 포함하지 않습니다.
+        2. 기사에 직접 근거가 없는 내용은 쓰지 않습니다.
+        3. 정치 기사, 인물 기사, 문화 기사처럼 생활비 연결이 약하면 effects는 빈 배열로 둡니다.
+        4. 현재 뉴스 요약에 cost_signal:none 또는 consumer_link:no가 보이면 effects는 기본적으로 빈 배열이어야 합니다.
+        5. history_context는 참고만 합니다. 현재 기사 근거보다 우선하지 않습니다.
+        6. indicator_context는 보조 근거일 뿐이며 기사 내용과 맞을 때만 사용합니다.
+        7. geo_scope는 기존 저장 호환용 필드이며 global, asia, korea 중 하나만 사용합니다.
+        8. article_scope는 기사 자체의 실제 지역이며 korea, uk, europe, asia, middle_east, africa, americas, global, unknown 중 하나만 사용합니다.
+        9. korea_relevance는 한국 소비자 생활비와의 관련성으로 direct, indirect, none 중 하나만 사용합니다.
+        10. 영국 기사면 article_scope는 uk입니다. 유럽 일반 기사면 europe입니다.
+        11. 한국 과거 기사 데이터가 부족하더라도 foreign 기사를 korea로 바꾸지 않습니다.
+        12. 기사 자체가 한국이거나 한국 가계 영향이 직접 명시되면 geo_scope=korea를 사용할 수 있습니다.
+        13. 아시아 지역 기사지만 한국 직접 연결이 약하면 geo_scope=asia로 둡니다.
+        14. 영국, 유럽, 미국, 중동, 아프리카 등 비한국 기사에서 한국 직접 연결 근거가 없으면 geo_scope=global로 둡니다.
+        15. 확신이 없으면 geo_scope는 global, article_scope는 unknown으로 둡니다.
+        16. effect_chain은 최대 3단계까지만 작성합니다.
+        17. effects는 최대 3개까지만 작성합니다.
+        18. 동일한 category 중복은 한 번만 사용합니다.
+        19. related_indicators는 usd_krw, wti, gold, base_rate 중 관련 있는 것만 씁니다.
+        20. reliability_reason은 짧고 직접적으로 작성합니다.
+        21. 아래 경우는 생활비 관련 기사로 보지 말고 effects를 빈 배열로 둡니다.
+            - 개별 주택 매매가, 개별 부동산 시세, 자산가격, 주가, 기업 인수합병, 단일 주식/예술품 가격
+            - 분쟁지역의 국지적 자산가격 왜곡이나 일시적 매매가 급락
+            - 화장품, 미용, 사치재, 전시, 공연, 티켓, 오락, 고가 취미 등 선택적 소비 기사
+            - 특정 브랜드/제품의 과장 광고 논란만 있고 필수 생활비 항목과 직접 연결이 없는 경우
+        22. 아래처럼 넓은 생활비 항목과 직접 연결될 때만 effects를 작성합니다.
+            - 연료비, 에너지비, 가스비, 식비, 곡물/원자재 가격, 운송비, 공공요금, 전반적 물가, 통신비
+        23. 선택적 소비 또는 자산 가치만 변한다고 보이면 effects는 빈 배열로 둡니다.
+        24. "가격이 내려가면 생활비가 줄 수 있다" 같은 일반론만으로는 effects를 만들지 않습니다.
+        25. 자동차 판매 가격 경쟁, 딜러 매장 경쟁, car forecourt/forecourts 문맥은 연료비 하락으로 해석하지 않습니다.
+        26. 현재 뉴스 압축 노트의 cost_signal을 반드시 확인하고 effects의 direction과 일치시킵니다.
+            - cost_signal: up   → direction: up
+            - cost_signal: down → direction: down
+            - cost_signal: none → effects: []
+        27. 공급 증가, 가격 하락, 정부 보조 확대, 세금 인하, 재고 증가, 수요 감소 뉴스는 direction: down을 적극 사용합니다.
+        28. 상반된 힘이 서로 상쇄되거나 효과가 2% 미만으로 미미하면 direction: neutral, magnitude: low를 사용합니다.
+
+        direction 기준 (월간 변화율 R 기준):
+        - neutral: |R| < 2% (변화가 미미하거나 상쇄되는 경우)
+        - up / down: |R| >= 2%
+        - 확신이 없거나 효과가 미미할 것으로 판단되면 neutral을 선택합니다.
+
+        magnitude 기준:
+        - low: 0~2%
+        - medium: 2~5%
+        - high: 5% 이상
+
+        필드 규칙:
+        - event, mechanism은 비우지 않습니다.
+        - time_horizon: short | medium | long
+        - leading_indicator: leading | coincident | lagging
+        - geo_scope: global | asia | korea
+        - article_scope: korea | uk | europe | asia | middle_east | africa | americas | global | unknown
+        - korea_relevance: direct | indirect | none
+        - effects[].category / direction / magnitude는 아래 값만 사용합니다.
           category: {category_text}
           direction: up | down | neutral
           magnitude: low | medium | high
-        - neutral effect를 넣으려면 change_pct_min, change_pct_max, monthly_impact 중 하나 이상이 0이 아니어야 합니다.
-        - direction=neutral 이고 change_pct_min=0, change_pct_max=0, monthly_impact=0 이면 그 effect는 넣지 마세요.
-        - reliability_reason은 신뢰도 수치를 그렇게 판단한 이유를 한 줄로 작성하세요.
-        - time_horizon은 영향이 나타나는 시간대입니다: short(1~3개월) | medium(3~12개월) | long(12개월 이상)
-        - effect_chain은 파급 경로를 ["원인A", "중간단계B", "최종영향C"] 형태의 문자열 배열로 작성하세요.
-        - buffer는 충격을 완충하는 요인(정부 보조금, 대체재, 비축량 등)을 한 줄로 작성하세요. 없으면 빈 문자열.
-        - leading_indicator는 이 뉴스의 시장 선행성입니다: leading(가격 변화 예고) | coincident(동시 발생) | lagging(결과 보도)
-        - geo_scope는 영향의 지리적 범위입니다: global | asia | korea
-        - 반드시 유효한 JSON만 출력하세요.
-
-        과거 사례 활용 규칙:
-        - [과거 분석 뉴스 컨텍스트]는 참고용입니다.
-        - 과거 분석을 그대로 복사하지 말고 현재 뉴스 맥락에 맞게 조정하세요.
-        - 현재 뉴스 요약에 직접 근거가 있는 영향만 넣으세요.
-        - 과거 분석 뉴스는 현재 뉴스보다 우선하지 않습니다.
+        - direction=neutral이면 change_pct_min, change_pct_max, monthly_impact는 0으로 둡니다.
+        - 확신이 낮으면 monthly_impact는 0으로 두고 reliability를 낮춥니다.
+        - buffer 값이 없으면 빈 문자열("")을 사용합니다. none, null, N/A는 쓰지 않습니다.
 
         출력 예시:
         {example_json}
@@ -99,17 +159,15 @@ def build_causal_prompt(categories: list[dict]) -> ChatPromptTemplate:
 
     user_prompt = dedent(
         """
-        다음 뉴스 요약을 보고 소비자 생활비 영향 JSON만 출력하세요.
-        과거 분석 뉴스는 참고용 맥락이며, 현재 뉴스보다 우선하지 마세요.
-        경제 지표가 제공된 경우 monthly_impact 추정 시 실제 수치를 근거로 사용하세요.
+        아래 입력을 바탕으로 생활비 영향 JSON만 출력하세요.
 
-        [현재 뉴스 요약]
+        [현재 뉴스 압축 노트]
         {summary}
 
-        [뉴스 발행 당시 경제 지표]
+        [기사 시점 경제지표 요약]
         {indicator_context}
 
-        [과거 분석 뉴스 컨텍스트]
+        [과거 유사 기사 요약]
         {history_context}
         """
     ).strip()

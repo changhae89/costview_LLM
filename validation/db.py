@@ -19,6 +19,7 @@ def fetch_cohort(connection, *, start: str, end: str | None = None) -> list[dict
             rn.origin_published_at,
             date_trunc('month', rn.origin_published_at AT TIME ZONE 'UTC')::date AS news_month_m,
             na.id                                                               AS news_analysis_id,
+            na.time_horizon,
             cc.id                                                               AS causal_chain_id,
             cc.category,
             cc.direction,
@@ -71,6 +72,34 @@ def fetch_indicator_values(
     with connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
         cur.execute(sql, (month_keys,))
         return {row["month_key"]: float(row["val"]) for row in cur.fetchall()}
+
+
+def fetch_followup_keyword_counts(
+    connection,
+    *,
+    keywords: list[str],
+    start_date: str,
+    end_date: str,
+) -> dict[str, int]:
+    """M+HORIZON 기간 내 키워드 매칭 뉴스 수를 월별로 반환.
+
+    Returns {YYYY-MM-DD (월 첫날): count}
+    """
+    sql = """
+        SELECT
+            date_trunc('month', origin_published_at AT TIME ZONE 'UTC')::date::text AS month_key,
+            COUNT(*) AS cnt
+        FROM raw_news
+        WHERE COALESCE(is_deleted, false) = false
+          AND processing_status = 'processed'
+          AND origin_published_at >= %s::timestamptz
+          AND origin_published_at < %s::timestamptz
+          AND keyword && %s::text[]
+        GROUP BY 1
+    """
+    with connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        cur.execute(sql, (start_date, end_date, keywords))
+        return {row["month_key"]: int(row["cnt"]) for row in cur.fetchall()}
 
 
 def _check(name: str, allowed: frozenset[str]) -> None:
