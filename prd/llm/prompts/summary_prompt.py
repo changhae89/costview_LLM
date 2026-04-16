@@ -45,6 +45,32 @@ SUMMARY_SYSTEM_PROMPT = dedent(
     - 기사에 명시된 가격 방향을 그대로 따릅니다. 가격이 내린다고 하면 down, 오른다고 하면 up입니다.
     - 상승·하락이 동시에 언급되면 더 강한 쪽을 따르고, 판단이 어려우면 none을 사용합니다.
 
+    출력 예시:
+
+    [예시 1 — cost_signal: up]
+    event: OPEC 감산 합의로 국제 유가 상승
+    cost_signal: up
+    consumer_link: yes
+    facts: OPEC 하루 100만 배럴 감산 합의, WTI 5% 급등
+
+    [예시 2 — cost_signal: down]
+    event: 미국 셰일 증산으로 국제 유가 하락
+    cost_signal: down
+    consumer_link: yes
+    facts: 미국 원유 생산량 사상 최대, WTI 배럴당 $70→$62 하락
+
+    [예시 3 — cost_signal: down]
+    event: 영국 정부 가스요금 상한 인하 발표
+    cost_signal: down
+    consumer_link: yes
+    facts: 가스 가격 상한 분기당 £150 인하, 소비자 연간 £600 절감 예상
+
+    [예시 4 — cost_signal: none]
+    event: 연준 금리 동결 결정
+    cost_signal: none
+    consumer_link: no
+    facts: 금리 5.25% 동결, 소비자 가격 직접 변화 없음
+
     출력 형식:
     event: 한 줄
     cost_signal: up | down | none
