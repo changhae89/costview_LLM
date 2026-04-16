@@ -96,9 +96,18 @@ def run_validation(
             skipped_by_analysis[na_id] += 1
             continue
 
-        # time_horizon 필터: long 예측은 M+1 채점 제외
+        # time_horizon 필터: long/medium 예측은 M+1 채점 제외
         time_horizon = row.get("time_horizon") or "short"
         if time_horizon == "long" and horizon == 1:
+            skipped_by_analysis[na_id] += 1
+            continue
+        if time_horizon == "medium" and horizon == 1:
+            skipped_by_analysis[na_id] += 1
+            continue
+
+        # reliability 필터: 0.6 미만 체인 제외
+        reliability = float(row.get("reliability") or 0.0)
+        if reliability < 0.6:
             skipped_by_analysis[na_id] += 1
             continue
 
@@ -162,6 +171,115 @@ def _keyword_check(
         results[category] = hit / len(months)
 
     return results
+
+
+# ---------------------------------------------------------------------------
+# Clustered validation (동월 × 카테고리 신호 집계)
+# ---------------------------------------------------------------------------
+
+def run_clustered_validation(
+    connection,
+    *,
+    start: str,
+    end: str | None = None,
+    horizon: int = HORIZON_MONTHS,
+) -> list[dict]:
+    """동월 × 카테고리 단위로 LLM 신호를 다수결 집계해 지표와 비교."""
+    from collections import Counter
+    from .scorer import compute_r
+
+    rows = fetch_cohort(connection, start=start, end=end)
+    if not rows:
+        return []
+
+    needed: dict[tuple, set] = defaultdict(set)
+    for row in rows:
+        mapping = get_category_mapping(row["category"], row.get("geo_scope"))
+        if not mapping:
+            continue
+        table, value_col, date_key_col = mapping
+        key_m, key_h = _month_keys(row["news_month_m"], date_key_col, horizon)
+        needed[(table, value_col, date_key_col)].update([key_m, key_h])
+
+    cache: dict[tuple, dict] = {}
+    for key, months in needed.items():
+        table, value_col, date_key_col = key
+        if table in _DAILY_TABLES:
+            cache[key] = fetch_indicator_daily_monthly_avg(
+                connection, table=table, value_col=value_col, month_keys=list(months)
+            )
+        else:
+            cache[key] = fetch_indicator_values(
+                connection, table=table, value_col=value_col,
+                date_key_col=date_key_col, month_keys=list(months)
+            )
+
+    # (news_month_m, category, geo_scope) → direction 투표
+    clusters: dict[tuple, Counter] = defaultdict(Counter)
+    for row in rows:
+        key = (row["news_month_m"], row["category"], row.get("geo_scope") or "global")
+        clusters[key][row["direction"]] += 1
+
+    results = []
+    for (month, category, geo_scope), votes in sorted(clusters.items()):
+        mapping = get_category_mapping(category, geo_scope)
+        if not mapping:
+            continue
+        table, value_col, date_key_col = mapping
+        key_m, key_h = _month_keys(month, date_key_col, horizon)
+        indicator = cache.get((table, value_col, date_key_col), {})
+        v_m, v_h = indicator.get(key_m), indicator.get(key_h)
+        if v_m is None or v_h is None:
+            continue
+
+        r = compute_r(v_m, v_h)
+        actual = "neutral" if abs(r) < NEUTRAL_THRESHOLD_PCT else ("up" if r > 0 else "down")
+
+        up, down, neutral = votes.get("up", 0), votes.get("down", 0), votes.get("neutral", 0)
+
+        # 다수결 — 동률이면 neutral 우선
+        if up > down and up > neutral:
+            agg = "up"
+        elif down > up and down > neutral:
+            agg = "down"
+        else:
+            agg = "neutral"
+
+        results.append({
+            "month": str(month),
+            "category": category,
+            "geo_scope": geo_scope,
+            "signal_count": up + down + neutral,
+            "up_votes": up, "down_votes": down, "neutral_votes": neutral,
+            "aggregated_direction": agg,
+            "actual_r": round(r, 4),
+            "actual_direction": actual,
+            "hit": agg == actual,
+        })
+
+    return results
+
+
+def print_clustered_report(cluster_results: list[dict], horizon: int) -> None:
+    if not cluster_results:
+        return
+
+    total = len(cluster_results)
+    hits  = sum(1 for c in cluster_results if c["hit"])
+    print(f"\n[클러스터 집계 방향 적중률 M+{horizon}]  클러스터={total}개  적중={hits}개 ({hits/total:.1%})")
+
+    by_cat: dict[str, list] = defaultdict(list)
+    for c in cluster_results:
+        by_cat[c["category"]].append(c)
+
+    print(f"  {'카테고리':<12} {'클러스터':>6}  {'적중률':>8}  {'평균신호수':>8}")
+    print("  " + "-" * 42)
+    for cat in sorted(by_cat):
+        cats = by_cat[cat]
+        cat_hits = sum(1 for c in cats if c["hit"])
+        avg_sig  = sum(c["signal_count"] for c in cats) / len(cats)
+        label    = _CATEGORY_KO.get(cat, cat)
+        print(f"  {label:<12} {len(cats):>6}  {cat_hits/len(cats):>8.1%}  {avg_sig:>8.1f}")
 
 
 # ---------------------------------------------------------------------------

@@ -107,9 +107,11 @@ def score_chain(row: dict, v_m: float, v_m1: float) -> ChainScore:
     mag_s = score_magnitude(row["magnitude"], r)
     pct_s = score_change_pct(row.get("change_pct_min"), row.get("change_pct_max"), r)
 
-    components = [dir_s, mag_s]
+    # 가중치: direction 50%, magnitude 30%, change_pct 20%
     if pct_s is not None:
-        components.append(pct_s)
+        chain_score = dir_s * 0.5 + mag_s * 0.3 + pct_s * 0.2
+    else:
+        chain_score = dir_s * (0.5 / 0.8) + mag_s * (0.3 / 0.8)
 
     return ChainScore(
         causal_chain_id=str(row["causal_chain_id"]),
@@ -119,7 +121,7 @@ def score_chain(row: dict, v_m: float, v_m1: float) -> ChainScore:
         direction=dir_s,
         magnitude=mag_s,
         change_pct=pct_s,
-        chain_score=sum(components) / len(components),
+        chain_score=chain_score,
     )
 
 
