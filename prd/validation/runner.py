@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import math
 from collections import defaultdict
-from datetime import date
+from datetime import date, timedelta
 
 from .config import HORIZON_MONTHS, NEUTRAL_THRESHOLD_PCT
 from .db import fetch_cohort, fetch_followup_keyword_counts, fetch_indicator_daily_monthly_avg, fetch_indicator_daily_range, fetch_indicator_values
@@ -66,11 +66,10 @@ def run_validation(
             continue
         table, value_col, date_key_col = mapping
         if table in _DAILY_TABLES:
-            key_m_prefix = row["news_month_m"].strftime("%Y-%m")
-            m_horizon = _advance_months(row["news_month_m"], horizon)
-            key_h_prefix = m_horizon.strftime("%Y-%m")
-            daily_needed[(table, value_col)].add(key_m_prefix)
-            daily_needed[(table, value_col)].add(key_h_prefix)
+            # M월 기준 + M+1 ~ M+N 누적 윈도우 전체 월 수집
+            for i in range(horizon + 1):
+                prefix = _advance_months(row["news_month_m"], i).strftime("%Y-%m")
+                daily_needed[(table, value_col)].add(prefix)
         else:
             key_m, key_horizon = _month_keys(row["news_month_m"], date_key_col, horizon)
             needed[(table, value_col, date_key_col)].update((key_m, key_horizon))
@@ -133,17 +132,25 @@ def run_validation(
         table, value_col, date_key_col = mapping
 
         if table in _DAILY_TABLES:
-            # 일봉: M월 평균을 기준으로 M+N월 일봉 중 하나라도 달성하면 적중
+            # 일봉: M월 평균 기준, 뉴스 다음날 ~ M+N월 말일 누적 윈도우
             daily_data = daily_cache.get((table, value_col), {})
             key_m_prefix = row["news_month_m"].strftime("%Y-%m")
-            m_horizon = _advance_months(row["news_month_m"], horizon)
-            key_h_prefix = m_horizon.strftime("%Y-%m")
             m_vals = [v for k, v in daily_data.items() if k.startswith(key_m_prefix)]
-            daily_h = [v for k, v in daily_data.items() if k.startswith(key_h_prefix)]
-            if not m_vals or not daily_h:
+            if not m_vals:
                 skipped_by_analysis[na_id] += 1
                 continue
             v_m = sum(m_vals) / len(m_vals)
+
+            # 뉴스 발행일 다음날부터 M+N월 말일까지 누적
+            news_dt = row["origin_published_at"]
+            news_date = news_dt.date() if hasattr(news_dt, "date") else news_dt
+            window_start = (news_date + timedelta(days=1)).strftime("%Y-%m-%d")
+            window_end = _next_month_first(_advance_months(row["news_month_m"], horizon)).strftime("%Y-%m-%d")
+            daily_h = [v for k, v in daily_data.items() if window_start <= k < window_end]
+
+            if not daily_h:
+                skipped_by_analysis[na_id] += 1
+                continue
             cs = score_chain_daily(row, v_m, daily_h)
         else:
             key_m, key_horizon = _month_keys(row["news_month_m"], date_key_col, horizon)
