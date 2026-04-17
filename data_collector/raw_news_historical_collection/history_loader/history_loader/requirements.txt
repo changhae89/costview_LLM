@@ -1,0 +1,16 @@
+# load_guardian_history.py 실행용 (repo 루트에서: python history_loader/load_guardian_history.py)
+# pip install -r history_loader/requirements.txt
+
+# Guardian API HTTP 클라이언트
+httpx>=0.27.0
+
+# 직접 Postgres 연결 시 (DATABASE_URL / connection string)
+psycopg2-binary>=2.9.9
+
+# .env 로드
+python-dotenv>=1.0.1
+
+# Supabase(PostgREST) 모드 시 — common.supabase_client, supabase_store
+supabase>=2.3.0,<3
+langchain-core>=0.3,<0.4
+langgraph>=0.2,<0.4

@@ -10,3 +10,4 @@ temp/
 prd/logs/*.log
 __pycache__/
 *.py[cod]
+data_collector/out.log
