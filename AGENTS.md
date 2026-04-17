@@ -16,7 +16,7 @@ This repository uses `AGENTS.md` as the shared source of truth for project-level
 - `frontendapp/costview/`: Expo app (main UI); API wrapper at `src/lib/api.ts`
 - `backend/`: FastAPI service (`app/main.py`, routers under `app/api/routes/`, schemas under `app/schemas/`, SQLAlchemy models under `app/models/`)
 - `history_loader/`, `history_naver/`: standalone Python loaders (news/history → DB or Supabase-backed flows per script)
-- `prd/`, `proposal/`: Python tooling and pipelines related to PRD/proposal workflows; LLM eval fixtures live under **`prd/evals/`**
+- `prd/`, `proposal/`: Python tooling and pipelines related to PRD/proposal workflows; LLM eval fixtures live under **`prd/evals/`**; DB backtest validation package lives under **`prd/validation/`** (run `cd prd && python -m validation.main`)
 - `costview_LLM/`: separate Node package (pnpm, Vitest) for LLM-related utilities; not the main mobile app
 - `common/`: shared Python modules (e.g. `supabase_client.py`) imported by loaders
 - `.github/workflows/`: CI and scheduled or manual automation

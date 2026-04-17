@@ -1,7 +1,7 @@
 """scorer.py 단위 테스트.
 
 실행:
-    cd costview_LLM
+    cd prd
     pytest validation/evals/test_scorer.py -v
 """
 from __future__ import annotations

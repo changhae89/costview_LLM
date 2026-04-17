@@ -34,7 +34,7 @@ DIRECTION_CASES: list[dict] = [
     # 경계값 (neutral threshold = 1%)
     {"model": "up",      "r":  1.0,  "expected": 1.0, "desc": "R=1.0% → up (경계 초과)"},
     {"model": "neutral", "r":  1.0,  "expected": 0.0, "desc": "중립 예측, R=1.0% → 실제 up"},
-    {"model": "up",      "r":  0.99, "expected": 0.0, "desc": "상승 예측, R=0.99% → 실제 neutral"},
+    {"model": "up",      "r":  0.99, "expected": 0.5, "desc": "상승 예측, R=0.99% → 실제 neutral (partial)"},
 ]
 
 # ---------------------------------------------------------------------------
@@ -116,12 +116,12 @@ CHAIN_CASES: list[dict] = [
         "v_m": 326.588, "v_m1": 327.46,
         "expected": {
             "r": 0.267,          # ≈ +0.267%
-            "direction": 0.0,    # up 예측, R<1% → 실제 neutral ✗
+            "direction": 0.5,    # up vs 실제 neutral → partial (scorer.score_direction)
             "magnitude": 1.0,    # low 예측, |R|<2% → 실제 low ✓
             "change_pct": None,
-            "chain_score": 0.5,  # (0.0+1.0)/2
+            "chain_score": 0.6875,  # dir*0.625 + mag*0.375 (change_pct 없음)
         },
-        "desc": "inflation: 방향 미스 (neutral인데 up 예측), 강도 적중",
+        "desc": "inflation: 방향 partial (neutral인데 up 예측), 강도 적중",
     },
     {
         "chain": {
@@ -137,11 +137,11 @@ CHAIN_CASES: list[dict] = [
         "v_m": 164.85, "v_m1": 163.78,
         "expected": {
             "r": -0.649,         # ≈ -0.65%
-            "direction": 0.0,    # down 예측, R=-0.649% → |R|<1% → 실제 neutral → 방향 미스
+            "direction": 0.5,    # down vs 실제 neutral → partial
             "magnitude": 0.5,    # medium 예측, |R|<2% → 실제 low → 인접
             "change_pct": 0.0,   # R=-0.649%, 범위 [-5, -1] → 범위 밖
-            "chain_score": 0.167,  # (0.0+0.5+0.0)/3
+            "chain_score": 0.4,  # 0.5*0.5 + 0.5*0.3 + 0.0*0.2
         },
-        "desc": "food: 방향·범위 미스, 강도 인접",
+        "desc": "food: 방향 partial·범위 미스, 강도 인접",
     },
 ]
