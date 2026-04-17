@@ -86,6 +86,78 @@ def score_change_pct(
 
 
 # ---------------------------------------------------------------------------
+# Daily (any-day) scoring
+# ---------------------------------------------------------------------------
+
+def score_direction_any_day(model_dir: str, v_m: float, daily_values: list[float]) -> float:
+    """1.0 if any day in M+N achieves the predicted direction vs M-month avg."""
+    if not daily_values:
+        return 0.0
+    realized_days = [_realized_direction(compute_r(v_m, v)) for v in daily_values]
+    if any(d == model_dir for d in realized_days):
+        return 1.0
+    if all(d == "neutral" for d in realized_days):
+        return 0.5
+    return 0.0
+
+
+def score_magnitude_any_day(model_mag: str, v_m: float, daily_values: list[float]) -> float:
+    """Magnitude scored against the peak |R| day."""
+    if not daily_values:
+        return 0.0
+    max_abs_r = max(abs(compute_r(v_m, v)) for v in daily_values)
+    diff = abs(
+        _MAGNITUDE_ORDER.get(model_mag, 1) - _MAGNITUDE_ORDER.get(_realized_magnitude(max_abs_r), 1)
+    )
+    return [1.0, 0.5, 0.0][min(diff, 2)]
+
+
+def score_change_pct_any_day(
+    pct_min: float | None,
+    pct_max: float | None,
+    v_m: float,
+    daily_values: list[float],
+) -> float | None:
+    """1.0 if any day's R falls within [min, max], None if bounds are both NULL."""
+    if pct_min is None and pct_max is None:
+        return None
+    if not daily_values:
+        return 0.0
+    lo = pct_min if pct_min is not None else float("-inf")
+    hi = pct_max if pct_max is not None else float("inf")
+    rs = [compute_r(v_m, v) for v in daily_values]
+    if CHANGE_PCT_INCLUSIVE:
+        return 1.0 if any(lo <= r <= hi for r in rs) else 0.0
+    return 1.0 if any(lo <= r < hi for r in rs) else 0.0
+
+
+def score_chain_daily(row: dict, v_m: float, daily_values: list[float]) -> "ChainScore":
+    """Score a chain using daily values: hit if any single day achieves the prediction."""
+    dir_s = score_direction_any_day(row["direction"], v_m, daily_values)
+    mag_s = score_magnitude_any_day(row["magnitude"], v_m, daily_values)
+    pct_s = score_change_pct_any_day(row.get("change_pct_min"), row.get("change_pct_max"), v_m, daily_values)
+
+    if pct_s is not None:
+        chain_score = dir_s * 0.5 + mag_s * 0.3 + pct_s * 0.2
+    else:
+        chain_score = dir_s * (0.5 / 0.8) + mag_s * (0.3 / 0.8)
+
+    # representative R: peak absolute day
+    r = max((compute_r(v_m, v) for v in daily_values), key=abs)
+
+    return ChainScore(
+        causal_chain_id=str(row["causal_chain_id"]),
+        news_analysis_id=str(row["news_analysis_id"]),
+        category=row["category"],
+        r=round(r, 4),
+        direction=dir_s,
+        magnitude=mag_s,
+        change_pct=pct_s,
+        chain_score=chain_score,
+    )
+
+
+# ---------------------------------------------------------------------------
 # Chain-level score
 # ---------------------------------------------------------------------------
 

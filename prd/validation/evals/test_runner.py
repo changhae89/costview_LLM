@@ -1,7 +1,7 @@
 """runner.py 통합 테스트 (DB mock).
 
 실행:
-    cd costview_LLM
+    cd prd
     pytest validation/evals/test_runner.py -v
 """
 from __future__ import annotations
@@ -31,6 +31,10 @@ def _make_cohort_row(
     magnitude="high",
     change_pct_min=None,
     change_pct_max=None,
+    reliability=1.0,
+    time_horizon="short",
+    # None이면 global 매핑 → oil 등이 일간 테이블이 되어 fetch_indicator_values 목과 불일치
+    geo_scope="korea",
 ) -> dict:
     return {
         "raw_news_id": raw_news_id,
@@ -43,6 +47,9 @@ def _make_cohort_row(
         "magnitude": magnitude,
         "change_pct_min": change_pct_min,
         "change_pct_max": change_pct_max,
+        "reliability": reliability,
+        "time_horizon": time_horizon,
+        "geo_scope": geo_scope,
     }
 
 
@@ -67,7 +74,7 @@ def test_run_validation_single_chain_full_hit(mock_cohort, mock_indicator):
     }
 
     conn = MagicMock()
-    chain_scores, analysis_scores, _ = run_validation(conn, start="2025-01-01")
+    chain_scores, analysis_scores, _ = run_validation(conn, start="2025-01-01", horizon=1)
 
     assert len(chain_scores) == 1
     cs: ChainScore = chain_scores[0]
@@ -92,7 +99,7 @@ def test_run_validation_skips_unmapped_category(mock_cohort, mock_indicator):
     mock_indicator.return_value = {}
 
     conn = MagicMock()
-    chain_scores, analysis_scores, _ = run_validation(conn, start="2025-01-01")
+    chain_scores, analysis_scores, _ = run_validation(conn, start="2025-01-01", horizon=1)
 
     assert chain_scores == []
     assert analysis_scores[0].eligible_chains == 0
@@ -109,7 +116,7 @@ def test_run_validation_skips_missing_m1(mock_cohort, mock_indicator):
     mock_indicator.return_value = {"2025-01-01": 212.88}  # M+1 없음
 
     conn = MagicMock()
-    chain_scores, analysis_scores, _ = run_validation(conn, start="2025-01-01")
+    chain_scores, analysis_scores, _ = run_validation(conn, start="2025-01-01", horizon=1)
 
     assert chain_scores == []
     assert analysis_scores[0].skipped_chains == 1
@@ -140,16 +147,16 @@ def test_run_validation_method_b_aggregation(mock_cohort, mock_indicator):
     mock_indicator.side_effect = _indicator_side_effect
 
     conn = MagicMock()
-    chain_scores, analysis_scores, _ = run_validation(conn, start="2025-01-01")
+    chain_scores, analysis_scores, _ = run_validation(conn, start="2025-01-01", horizon=1)
 
     assert len(chain_scores) == 2
     oil_cs   = next(c for c in chain_scores if c.category == "oil")
     infl_cs  = next(c for c in chain_scores if c.category == "inflation")
 
-    assert oil_cs.chain_score  == pytest.approx(1.0,  abs=0.01)   # 완전 적중
-    assert infl_cs.chain_score == pytest.approx(0.5,  abs=0.01)   # 방향 미스, 강도 적중
+    assert oil_cs.chain_score  == pytest.approx(1.0,    abs=0.01)   # 완전 적중
+    assert infl_cs.chain_score == pytest.approx(0.6875, abs=0.01)   # down vs 실제 neutral → dir 0.5, low 적중
 
-    expected_analysis_score = (1.0 + 0.5) / 2
+    expected_analysis_score = (1.0 + 0.6875) / 2
     assert analysis_scores[0].analysis_score == pytest.approx(expected_analysis_score, abs=0.01)
 
 
@@ -158,6 +165,6 @@ def test_run_validation_empty_cohort(mock_cohort):
     """조회 결과 없으면 빈 리스트 반환."""
     mock_cohort.return_value = []
     conn = MagicMock()
-    chain_scores, analysis_scores, _ = run_validation(conn, start="2025-01-01")
+    chain_scores, analysis_scores, _ = run_validation(conn, start="2025-01-01", horizon=1)
     assert chain_scores    == []
     assert analysis_scores == []

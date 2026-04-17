@@ -6,9 +6,9 @@ from collections import defaultdict
 from datetime import date
 
 from .config import HORIZON_MONTHS, NEUTRAL_THRESHOLD_PCT
-from .db import fetch_cohort, fetch_followup_keyword_counts, fetch_indicator_daily_monthly_avg, fetch_indicator_values
+from .db import fetch_cohort, fetch_followup_keyword_counts, fetch_indicator_daily_monthly_avg, fetch_indicator_daily_range, fetch_indicator_values
 from .mapping import CATEGORY_KEYWORDS, _DAILY_TABLES, get_category_mapping
-from .scorer import AnalysisScore, ChainScore, aggregate_analysis, score_chain
+from .scorer import AnalysisScore, ChainScore, aggregate_analysis, score_chain, score_chain_daily
 
 
 # ---------------------------------------------------------------------------
@@ -55,33 +55,49 @@ def run_validation(
         return [], [], {}
 
     # --- Bulk-fetch indicator values ---
+    # monthly tables: (table, value_col, date_key_col) → {month_key: value}
     needed: dict[tuple[str, str, str], set[str]] = defaultdict(set)
+    # daily tables: (table, value_col) → set of "YYYY-MM" prefixes needed
+    daily_needed: dict[tuple[str, str], set[str]] = defaultdict(set)
+
     for row in rows:
         mapping = get_category_mapping(row["category"], row.get("geo_scope"))
         if not mapping:
             continue
         table, value_col, date_key_col = mapping
-        key_m, key_horizon = _month_keys(row["news_month_m"], date_key_col, horizon)
-        needed[(table, value_col, date_key_col)].update((key_m, key_horizon))
+        if table in _DAILY_TABLES:
+            key_m_prefix = row["news_month_m"].strftime("%Y-%m")
+            m_horizon = _advance_months(row["news_month_m"], horizon)
+            key_h_prefix = m_horizon.strftime("%Y-%m")
+            daily_needed[(table, value_col)].add(key_m_prefix)
+            daily_needed[(table, value_col)].add(key_h_prefix)
+        else:
+            key_m, key_horizon = _month_keys(row["news_month_m"], date_key_col, horizon)
+            needed[(table, value_col, date_key_col)].update((key_m, key_horizon))
 
+    # monthly cache
     cache: dict[tuple[str, str, str], dict[str, float]] = {}
     for key, months in needed.items():
         table, value_col, date_key_col = key
-        if table in _DAILY_TABLES:
-            cache[key] = fetch_indicator_daily_monthly_avg(
-                connection,
-                table=table,
-                value_col=value_col,
-                month_keys=list(months),
-            )
-        else:
-            cache[key] = fetch_indicator_values(
-                connection,
-                table=table,
-                value_col=value_col,
-                date_key_col=date_key_col,
-                month_keys=list(months),
-            )
+        cache[key] = fetch_indicator_values(
+            connection,
+            table=table,
+            value_col=value_col,
+            date_key_col=date_key_col,
+            month_keys=list(months),
+        )
+
+    # daily cache: {(table, value_col): {YYYY-MM-DD: value}}
+    daily_cache: dict[tuple[str, str], dict[str, float]] = {}
+    for (table, value_col), month_prefixes in daily_needed.items():
+        sorted_prefixes = sorted(month_prefixes)
+        start_date = sorted_prefixes[0] + "-01"
+        last_y, last_m = int(sorted_prefixes[-1][:4]), int(sorted_prefixes[-1][5:7])
+        end_date = f"{last_y + 1}-01-01" if last_m == 12 else f"{last_y}-{last_m + 1:02d}-01"
+        daily_cache[(table, value_col)] = fetch_indicator_daily_range(
+            connection, table=table, value_col=value_col,
+            start_date=start_date, end_date=end_date,
+        )
 
     # --- Score each chain ---
     chains_by_analysis: dict[str, list[ChainScore]] = defaultdict(list)
@@ -96,12 +112,15 @@ def run_validation(
             skipped_by_analysis[na_id] += 1
             continue
 
-        # time_horizon 필터: long/medium 예측은 M+1 채점 제외
+        # time_horizon 필터: 예측 기간과 검증 시차 매칭
+        # short  → M+1/M+2/M+3 모두 채점
+        # medium → M+2, M+3만 채점 (M+1 제외)
+        # long   → M+3만 채점   (M+1, M+2 제외)
         time_horizon = row.get("time_horizon") or "short"
-        if time_horizon == "long" and horizon == 1:
+        if time_horizon == "medium" and horizon < 2:
             skipped_by_analysis[na_id] += 1
             continue
-        if time_horizon == "medium" and horizon == 1:
+        if time_horizon == "long" and horizon < 3:
             skipped_by_analysis[na_id] += 1
             continue
 
@@ -111,17 +130,30 @@ def run_validation(
             skipped_by_analysis[na_id] += 1
             continue
 
-
         table, value_col, date_key_col = mapping
-        key_m, key_horizon = _month_keys(row["news_month_m"], date_key_col, horizon)
-        indicator = cache.get((table, value_col, date_key_col), {})
-        v_m, v_horizon = indicator.get(key_m), indicator.get(key_horizon)
 
-        if v_m is None or v_horizon is None:
-            skipped_by_analysis[na_id] += 1
-            continue
+        if table in _DAILY_TABLES:
+            # 일봉: M월 평균을 기준으로 M+N월 일봉 중 하나라도 달성하면 적중
+            daily_data = daily_cache.get((table, value_col), {})
+            key_m_prefix = row["news_month_m"].strftime("%Y-%m")
+            m_horizon = _advance_months(row["news_month_m"], horizon)
+            key_h_prefix = m_horizon.strftime("%Y-%m")
+            m_vals = [v for k, v in daily_data.items() if k.startswith(key_m_prefix)]
+            daily_h = [v for k, v in daily_data.items() if k.startswith(key_h_prefix)]
+            if not m_vals or not daily_h:
+                skipped_by_analysis[na_id] += 1
+                continue
+            v_m = sum(m_vals) / len(m_vals)
+            cs = score_chain_daily(row, v_m, daily_h)
+        else:
+            key_m, key_horizon = _month_keys(row["news_month_m"], date_key_col, horizon)
+            indicator = cache.get((table, value_col, date_key_col), {})
+            v_m, v_horizon = indicator.get(key_m), indicator.get(key_horizon)
+            if v_m is None or v_horizon is None:
+                skipped_by_analysis[na_id] += 1
+                continue
+            cs = score_chain(row, v_m, v_horizon)
 
-        cs = score_chain(row, v_m, v_horizon)
         chains_by_analysis[na_id].append(cs)
         all_chain_scores.append(cs)
 
@@ -193,26 +225,41 @@ def run_clustered_validation(
         return []
 
     needed: dict[tuple, set] = defaultdict(set)
+    daily_needed: dict[tuple[str, str], set[str]] = defaultdict(set)
+
     for row in rows:
         mapping = get_category_mapping(row["category"], row.get("geo_scope"))
         if not mapping:
             continue
         table, value_col, date_key_col = mapping
-        key_m, key_h = _month_keys(row["news_month_m"], date_key_col, horizon)
-        needed[(table, value_col, date_key_col)].update([key_m, key_h])
+        if table in _DAILY_TABLES:
+            key_m_prefix = row["news_month_m"].strftime("%Y-%m")
+            m_horizon = _advance_months(row["news_month_m"], horizon)
+            key_h_prefix = m_horizon.strftime("%Y-%m")
+            daily_needed[(table, value_col)].add(key_m_prefix)
+            daily_needed[(table, value_col)].add(key_h_prefix)
+        else:
+            key_m, key_h = _month_keys(row["news_month_m"], date_key_col, horizon)
+            needed[(table, value_col, date_key_col)].update([key_m, key_h])
 
     cache: dict[tuple, dict] = {}
     for key, months in needed.items():
         table, value_col, date_key_col = key
-        if table in _DAILY_TABLES:
-            cache[key] = fetch_indicator_daily_monthly_avg(
-                connection, table=table, value_col=value_col, month_keys=list(months)
-            )
-        else:
-            cache[key] = fetch_indicator_values(
-                connection, table=table, value_col=value_col,
-                date_key_col=date_key_col, month_keys=list(months)
-            )
+        cache[key] = fetch_indicator_values(
+            connection, table=table, value_col=value_col,
+            date_key_col=date_key_col, month_keys=list(months)
+        )
+
+    daily_cache: dict[tuple[str, str], dict[str, float]] = {}
+    for (table, value_col), month_prefixes in daily_needed.items():
+        sorted_prefixes = sorted(month_prefixes)
+        start_date = sorted_prefixes[0] + "-01"
+        last_y, last_m = int(sorted_prefixes[-1][:4]), int(sorted_prefixes[-1][5:7])
+        end_date = f"{last_y + 1}-01-01" if last_m == 12 else f"{last_y}-{last_m + 1:02d}-01"
+        daily_cache[(table, value_col)] = fetch_indicator_daily_range(
+            connection, table=table, value_col=value_col,
+            start_date=start_date, end_date=end_date,
+        )
 
     # (news_month_m, category, geo_scope) → direction 투표
     clusters: dict[tuple, Counter] = defaultdict(Counter)
@@ -226,13 +273,29 @@ def run_clustered_validation(
         if not mapping:
             continue
         table, value_col, date_key_col = mapping
-        key_m, key_h = _month_keys(month, date_key_col, horizon)
-        indicator = cache.get((table, value_col, date_key_col), {})
-        v_m, v_h = indicator.get(key_m), indicator.get(key_h)
-        if v_m is None or v_h is None:
-            continue
 
-        r = compute_r(v_m, v_h)
+        if table in _DAILY_TABLES:
+            daily_data = daily_cache.get((table, value_col), {})
+            key_m_prefix = month.strftime("%Y-%m")
+            m_horizon = _advance_months(month, horizon)
+            key_h_prefix = m_horizon.strftime("%Y-%m")
+            m_vals = [v for k, v in daily_data.items() if k.startswith(key_m_prefix)]
+            daily_h = [v for k, v in daily_data.items() if k.startswith(key_h_prefix)]
+            if not m_vals or not daily_h:
+                continue
+            v_m = sum(m_vals) / len(m_vals)
+            # 일봉: 피크 |R|로 actual 방향 판정
+            rs = [compute_r(v_m, v) for v in daily_h]
+            peak_r = max(rs, key=abs)
+        else:
+            key_m, key_h = _month_keys(month, date_key_col, horizon)
+            indicator = cache.get((table, value_col, date_key_col), {})
+            v_m, v_h = indicator.get(key_m), indicator.get(key_h)
+            if v_m is None or v_h is None:
+                continue
+            peak_r = compute_r(v_m, v_h)
+
+        r = peak_r
         actual = "neutral" if abs(r) < NEUTRAL_THRESHOLD_PCT else ("up" if r > 0 else "down")
 
         up, down, neutral = votes.get("up", 0), votes.get("down", 0), votes.get("neutral", 0)

@@ -34,7 +34,7 @@ CATEGORY_MAP_KOREA: dict[str, tuple[str, str, str]] = {
 # Global geo_scope → FRED
 CATEGORY_MAP_GLOBAL: dict[str, tuple[str, str, str]] = {
     "oil":       ("indicator_fred_daily_logs",    "fred_wti",          "reference_date"),
-    "fuel":      ("indicator_fred_monthly_logs",  "fred_ppi",          "reference_month"),
+    "fuel":      ("indicator_fred_daily_logs",    "fred_wti",          "reference_date"),
     "gas":       ("indicator_fred_daily_logs",    "fred_natural_gas",  "reference_date"),
     "energy":    ("indicator_fred_daily_logs",    "fred_heating_oil",  "reference_date"),
     "food":      ("indicator_fred_monthly_logs",  "fred_wheat",        "reference_month"),
@@ -42,7 +42,7 @@ CATEGORY_MAP_GLOBAL: dict[str, tuple[str, str, str]] = {
     "commodity": ("indicator_fred_monthly_logs",  "fred_corn",         "reference_month"),
     "price":     ("indicator_fred_monthly_logs",  "fred_ppi",          "reference_month"),
     "inflation": ("indicator_fred_monthly_logs",  "fred_cpi",          "reference_month"),
-    "cost":      ("indicator_fred_monthly_logs",  "fred_ppi",          "reference_month"),
+    "cost":      ("indicator_fred_monthly_logs",  "fred_cpi",          "reference_month"),
 }
 
 # Backwards compat alias
