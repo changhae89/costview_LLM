@@ -1,7 +1,7 @@
 """검증 실행 진입점.
 
-실행:
-    python -m validation.main
+실행 (저장소 루트에서 prd를 cwd로):
+    cd prd && python -m validation.main
 """
 from __future__ import annotations
 
@@ -19,10 +19,11 @@ import psycopg2
 
 from validation.runner import print_combined_report, run_validation, run_clustered_validation, print_clustered_report
 
-# validation/.env 우선, 루트 .env는 fallback
+# prd/validation/.env 가장 우선, 그다음 prd/.env, 저장소 루트 .env
 _HERE = Path(__file__).resolve().parent
-_ROOT = _HERE.parent
-load_dotenv(_ROOT / ".env", override=False)
+_REPO_ROOT = _HERE.parent.parent
+load_dotenv(_REPO_ROOT / ".env", override=False)
+load_dotenv(_HERE.parent / ".env", override=False)
 load_dotenv(_HERE / ".env", override=True)
 
 # -----------------------------------------------------------------------

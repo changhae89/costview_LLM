@@ -106,6 +106,30 @@ def fetch_indicator_daily_monthly_avg(
         return {row["month_key"]: float(row["val"]) for row in cur.fetchall()}
 
 
+def fetch_indicator_daily_range(
+    connection,
+    *,
+    table: str,
+    value_col: str,
+    start_date: str,
+    end_date: str,
+) -> dict[str, float]:
+    """Return {YYYY-MM-DD: value} for all daily rows in [start_date, end_date)."""
+    _check(table, _ALLOWED_TABLES)
+    _check(value_col, _ALLOWED_COLUMNS)
+    sql = f"""
+        SELECT reference_date AS day_key, {value_col} AS val
+        FROM {table}
+        WHERE reference_date >= %s
+          AND reference_date < %s
+          AND {value_col} IS NOT NULL
+        ORDER BY reference_date
+    """
+    with connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        cur.execute(sql, (start_date, end_date))
+        return {row["day_key"]: float(row["val"]) for row in cur.fetchall()}
+
+
 def fetch_followup_keyword_counts(
     connection,
     *,
