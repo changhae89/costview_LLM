@@ -6,5 +6,8 @@ prd/validation/.env
 .venv/
 node_modules/
 temp/
+.pytest_cache/
+prd/logs/*.log
 __pycache__/
 *.py[cod]
+data_collector/out.log

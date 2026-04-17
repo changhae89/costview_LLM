@@ -1,0 +1,30 @@
+{
+  "expo": {
+    "name": "물가 레이더",
+    "slug": "costview",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "scheme": "costview",
+    "splash": {
+      "image": "./logo/logo1.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "android": {
+      "package": "com.costview.app"
+    },
+    "ios": {
+      "bundleIdentifier": "com.costview.app"
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-font"
+    ]
+  }
+}
