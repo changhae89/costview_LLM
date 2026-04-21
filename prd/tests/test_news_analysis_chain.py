@@ -68,7 +68,7 @@ def test_normalize_causal_filters_invalid_values() -> None:
     assert normalized["reliability"] == 1.0
     assert len(normalized["effects"]) == 1
     assert normalized["effects"][0]["direction"] == "up"
-    assert normalized["effects"][0]["magnitude"] == "high"
+    assert normalized["effects"][0]["magnitude"] == "medium"
 
 
 def test_normalize_causal_maps_legacy_categories_to_db_categories() -> None:

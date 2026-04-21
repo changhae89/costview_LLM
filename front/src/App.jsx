@@ -59,7 +59,11 @@ export default function App() {
   useEffect(() => {
     async function prepare() {
       try {
-        const raw = await AsyncStorage.getItem(DUMMY_AUTH_KEY);
+        // 로그인 상태 확인 + 최소 0.8수 대기 (로딩이 빨리 끝나면 즉시 넘어감)
+        const [raw] = await Promise.all([
+          AsyncStorage.getItem(DUMMY_AUTH_KEY),
+          new Promise(resolve => setTimeout(resolve, 800)),
+        ]);
         if (raw) {
           const parsed = JSON.parse(raw);
           if (parsed?.email) {
@@ -67,7 +71,6 @@ export default function App() {
             setIsLoggedIn(true);
           }
         }
-        await new Promise(resolve => setTimeout(resolve, 2500)); // 2.5초 대기
       } catch (e) {
         console.warn(e);
       } finally {
