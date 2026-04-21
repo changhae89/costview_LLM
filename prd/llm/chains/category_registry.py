@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from functools import lru_cache
 
-
-
 DEFAULT_ALLOWED_CATEGORIES = (
     "oil",
     "fuel",

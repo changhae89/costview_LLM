@@ -32,6 +32,14 @@ class CausalEffect(BaseModel):
     change_pct_min: float | None = None
     change_pct_max: float | None = None
     monthly_impact: int | None = None
+    raw_shock_percent: float = 0.0
+    raw_shock_rationale: str = ""
+    transmission_time_months: int = 1
+    transmission_rationale: str = ""
+    wallet_hit_percent: float = 0.0
+    raw_shock_factors: list[str] = Field(default_factory=list)
+    wallet_hit_factors: list[str] = Field(default_factory=list)
+    logic_steps: list[dict] = Field(default_factory=list)
 
 
 class CausalResult(BaseModel):
