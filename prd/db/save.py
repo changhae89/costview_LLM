@@ -14,9 +14,10 @@ def save_analysis_result(connection, raw_news_id: str, result: dict) -> None:
         INSERT INTO news_analyses (
             raw_news_id, summary, reliability, related_indicators,
             reliability_reason, time_horizon, effect_chain,
-            buffer, leading_indicator, geo_scope
+            buffer, leading_indicator, geo_scope,
+            article_scope, korea_relevance
         )
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         RETURNING id;
     """
     sql_update = """
@@ -30,6 +31,8 @@ def save_analysis_result(connection, raw_news_id: str, result: dict) -> None:
             buffer             = %s,
             leading_indicator  = %s,
             geo_scope          = %s,
+            article_scope      = %s,
+            korea_relevance    = %s,
             updated_at         = NOW()
         WHERE id = %s
         RETURNING id;
@@ -39,8 +42,12 @@ def save_analysis_result(connection, raw_news_id: str, result: dict) -> None:
         INSERT INTO causal_chains
             (news_analysis_id, event, mechanism,
              category, direction, magnitude,
-             change_pct_min, change_pct_max, monthly_impact)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s);
+             change_pct_min, change_pct_max, monthly_impact,
+             raw_shock_percent, raw_shock_rationale,
+             transmission_time_months, transmission_rationale,
+             wallet_hit_percent, raw_shock_factors,
+             wallet_hit_factors, logic_steps)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
     """
 
     try:
@@ -57,6 +64,8 @@ def save_analysis_result(connection, raw_news_id: str, result: dict) -> None:
             result.get("buffer") or "",
             result.get("leading_indicator"),
             result.get("geo_scope"),
+            result.get("article_scope"),
+            result.get("korea_relevance"),
         )
 
         with connection.cursor() as cursor:
@@ -74,6 +83,7 @@ def save_analysis_result(connection, raw_news_id: str, result: dict) -> None:
 
         with connection.cursor() as cursor:
             for effect in result.get("effects", []):
+                import json as _json
                 cursor.execute(
                     sql_causal,
                     (
@@ -86,6 +96,14 @@ def save_analysis_result(connection, raw_news_id: str, result: dict) -> None:
                         effect.get("change_pct_min"),
                         effect.get("change_pct_max"),
                         effect.get("monthly_impact"),
+                        effect.get("raw_shock_percent", 0),
+                        effect.get("raw_shock_rationale", ""),
+                        effect.get("transmission_time_months", 1),
+                        effect.get("transmission_rationale", ""),
+                        effect.get("wallet_hit_percent", 0),
+                        effect.get("raw_shock_factors", []),
+                        effect.get("wallet_hit_factors", []),
+                        _json.dumps(effect.get("logic_steps", []), ensure_ascii=False),
                     ),
                 )
 

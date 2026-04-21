@@ -143,6 +143,8 @@ def save_analysis_result_sb(sb: Any, raw_news_id: str, result: dict) -> None:
                 "buffer": result.get("buffer") or "",
                 "leading_indicator": result.get("leading_indicator"),
                 "geo_scope": result.get("geo_scope"),
+                "article_scope": result.get("article_scope"),
+                "korea_relevance": result.get("korea_relevance"),
             }
         )
         .execute()
@@ -165,6 +167,14 @@ def save_analysis_result_sb(sb: Any, raw_news_id: str, result: dict) -> None:
                     "change_pct_min": effect.get("change_pct_min"),
                     "change_pct_max": effect.get("change_pct_max"),
                     "monthly_impact": effect.get("monthly_impact"),
+                    "raw_shock_percent": effect.get("raw_shock_percent", 0),
+                    "raw_shock_rationale": effect.get("raw_shock_rationale", ""),
+                    "transmission_time_months": effect.get("transmission_time_months", 1),
+                    "transmission_rationale": effect.get("transmission_rationale", ""),
+                    "wallet_hit_percent": effect.get("wallet_hit_percent", 0),
+                    "raw_shock_factors": effect.get("raw_shock_factors", []),
+                    "wallet_hit_factors": effect.get("wallet_hit_factors", []),
+                    "logic_steps": effect.get("logic_steps", []),
                 }
             ).execute()
     except Exception:

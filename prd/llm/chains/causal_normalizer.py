@@ -128,6 +128,17 @@ def normalize_causal(
         elif monthly_impact is None:
             monthly_impact = 0
 
+        raw_shock_percent = _to_float(effect.get("raw_shock_percent")) or 0.0
+        raw_shock_rationale = str(effect.get("raw_shock_rationale") or "").strip()
+        transmission_time_months = _to_int(effect.get("transmission_time_months")) or 1
+        transmission_rationale = str(effect.get("transmission_rationale") or "").strip()
+        wallet_hit_percent = _to_float(effect.get("wallet_hit_percent")) or 0.0
+        raw_shock_factors = [str(f).strip() for f in (effect.get("raw_shock_factors") or []) if str(f).strip()]
+        wallet_hit_factors = [str(f).strip() for f in (effect.get("wallet_hit_factors") or []) if str(f).strip()]
+        logic_steps = effect.get("logic_steps") or []
+        if not isinstance(logic_steps, list):
+            logic_steps = []
+
         normalized_effects.append(
             {
                 "category": category,
@@ -136,6 +147,14 @@ def normalize_causal(
                 "change_pct_min": change_pct_min,
                 "change_pct_max": change_pct_max,
                 "monthly_impact": monthly_impact,
+                "raw_shock_percent": raw_shock_percent,
+                "raw_shock_rationale": raw_shock_rationale,
+                "transmission_time_months": transmission_time_months,
+                "transmission_rationale": transmission_rationale,
+                "wallet_hit_percent": wallet_hit_percent,
+                "raw_shock_factors": raw_shock_factors,
+                "wallet_hit_factors": wallet_hit_factors,
+                "logic_steps": logic_steps,
             }
         )
 
@@ -191,7 +210,10 @@ def normalize_causal(
         "leading_indicator": _normalize_enum(out.get("leading_indicator"), ALLOWED_LEADING_INDICATORS),
         "geo_scope": _normalize_enum(out.get("geo_scope"), ALLOWED_GEO_SCOPES),
         "article_scope": _normalize_enum(out.get("article_scope"), ALLOWED_ARTICLE_SCOPES),
-        "korea_relevance": _normalize_enum(out.get("korea_relevance"), ALLOWED_KOREA_RELEVANCE),
+        "korea_relevance": _normalize_korea_relevance(
+            out.get("korea_relevance"),
+            article_scope=_normalize_enum(out.get("article_scope"), ALLOWED_ARTICLE_SCOPES),
+        ),
     }
     return CausalResult.model_validate(normalized).model_dump()
 
@@ -348,6 +370,13 @@ def _derive_magnitude_from_range(
     if peak >= MAGNITUDE_BANDS["medium"][0]:
         return "medium"
     return "low"
+
+
+def _normalize_korea_relevance(value: Any, *, article_scope: str | None) -> str | None:
+    korea_relevance = _normalize_enum(value, ALLOWED_KOREA_RELEVANCE)
+    if korea_relevance == "direct" and article_scope not in (None, "korea"):
+        return "indirect"
+    return korea_relevance
 
 
 def _normalize_enum(value: Any, allowed: set[str]) -> str | None:
