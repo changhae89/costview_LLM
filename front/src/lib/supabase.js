@@ -76,16 +76,50 @@ export async function fetchPredictions() {
     .select(`
       id, category, direction, magnitude,
       change_pct_min, change_pct_max,
-      event, result, mechanism,
+      event, mechanism,
       monthly_impact,
       news_analyses!inner(
         id, summary, reliability, created_at,
-        raw_news:raw_news_id(title, keyword, increased_items, decreased_items)
+        related_indicators,
+        reliability_reason,
+        time_horizon,
+        leading_indicator,
+        buffer,
+        geo_scope,
+        raw_news:raw_news_id(id, title, keyword, origin_published_at, news_url)
       )
     `)
-    .gte('news_analyses.reliability', 0.3);
+    .gte('news_analyses.reliability', 0.3)
+    .order('id', { ascending: false })
+    .limit(2000);
+    
   if (error) throw error;
-  return data ?? [];
+  
+  const map = new Map();
+  (data ?? []).forEach(row => {
+    if (!row.news_analyses) return;
+    
+    // 카테고리 + 방향성을 키로 그룹화
+    const key = `${row.category}_${row.direction}`;
+    if (!map.has(key)) {
+      map.set(key, { ...row, news_analyses: [row.news_analyses] });
+    } else {
+      const existing = map.get(key);
+      // 이미 담긴 뉴스인지 확인 (중복 방지용)
+      if (!existing.news_analyses.some(na => na.id === row.news_analyses.id)) {
+        existing.news_analyses.push(row.news_analyses);
+      }
+    }
+  });
+
+  return Array.from(map.values()).map(item => ({
+    ...item,
+    news_analyses: item.news_analyses.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+  })).sort((a, b) => {
+    const da = new Date(a.news_analyses[0]?.created_at || 0);
+    const db = new Date(b.news_analyses[0]?.created_at || 0);
+    return db - da;
+  });
 }
 
 /** SCR-002: 뉴스 목록 */
@@ -126,9 +160,13 @@ export async function fetchNewsList() {
 }
 
 export async function fetchUnifiedDaily() {
-  const safeQuery = async (table) => {
+  const safeQuery = async (table, dateField = 'reference_date') => {
     try {
-      const { data, error } = await supabase.from(table).select('*').order('reference_date', { ascending: false }).limit(1250);
+      const { data, error } = await supabase
+        .from(table)
+        .select('*')
+        .order(dateField, { ascending: false })
+        .limit(2000);
       if (error) {
         console.warn(`[fetchUnifiedDaily] ${table} 조회 실패:`, error.message);
         return [];
@@ -153,42 +191,72 @@ export async function fetchUnifiedDaily() {
       if (!d) return;
       if (!map.has(d)) map.set(d, { reference_date: d });
       Object.assign(map.get(d), item);
+      // AI_GPR_Index 대소문자 정규화
+      if (item['AI_GPR_Index'] !== undefined && map.get(d).ai_gpr_index === undefined) {
+        map.get(d).ai_gpr_index = item['AI_GPR_Index'];
+      }
     });
   });
   return Array.from(map.values()).sort((a, b) => a.reference_date?.localeCompare(b.reference_date));
 }
 
 export async function fetchUnifiedMonthly() {
-  const [gpr, ecos, fred, kosis] = await Promise.all([
-    supabase.from('indicator_gpr_monthly_logs').select('*').order('reference_date', { ascending: false }).limit(120),
-    supabase.from('indicator_ecos_monthly_logs').select('*').order('reference_date', { ascending: false }).limit(120),
-    supabase.from('indicator_fred_monthly_logs').select('*').order('reference_month', { ascending: false }).limit(120),
-    supabase.from('indicator_kosis_monthly_logs').select('*').order('reference_date', { ascending: false }).limit(120),
+  const safeQuery = async (table, dateField = 'reference_date') => {
+    try {
+      const { data, error } = await supabase
+        .from(table)
+        .select('*')
+        .order(dateField, { ascending: false })
+        .limit(120);
+      if (error) {
+        console.warn(`[fetchUnifiedMonthly] ${table} 조회 실패:`, error.message);
+        return [];
+      }
+      return data ?? [];
+    } catch (e) {
+      console.warn(`[fetchUnifiedMonthly] ${table} 예외:`, e.message);
+      return [];
+    }
+  };
+
+  const [gprData, ecosData, fredData, kosisData] = await Promise.all([
+    safeQuery('indicator_gpr_monthly_logs', 'reference_date'),
+    safeQuery('indicator_ecos_monthly_logs', 'reference_date'),
+    safeQuery('indicator_fred_monthly_logs', 'reference_month'),
+    safeQuery('indicator_kosis_monthly_logs', 'reference_date'),
   ]);
 
   const map = new Map();
-  
+
   const processArr = (arr, dateField) => {
-    if (!arr) return;
+    if (!arr || arr.length === 0) return;
     arr.forEach(item => {
       let d = item[dateField];
       if (!d) return;
-      const monthPrefix = d.slice(0, 7);
-      if (!map.has(monthPrefix)) map.set(monthPrefix, { reference_date: d });
-      Object.assign(map.get(monthPrefix), item);
-      // Ensure AI_GPR_Index mapped cleanly
+      // YYYY-MM 또는 YYYY-MM-DD 모두 월 prefix로 통일
+      const monthPrefix = String(d).slice(0, 7);
+      // reference_date 값을 표준화: YYYY-MM-DD 형태로 맞춤
+      const normalizedDate = String(d).length >= 10 ? String(d).slice(0, 10) : `${monthPrefix}-01`;
+      if (!map.has(monthPrefix)) map.set(monthPrefix, { reference_date: normalizedDate });
+      // fred의 reference_month가 있으면 reference_date로 변환해서 저장
+      const merged = { ...item };
+      if (dateField === 'reference_month') {
+        merged.reference_date = normalizedDate;
+      }
+      Object.assign(map.get(monthPrefix), merged);
+      // AI_GPR_Index 대소문자 정규화
       if (item['AI_GPR_Index'] !== undefined) {
         map.get(monthPrefix).ai_gpr_index = item['AI_GPR_Index'];
       }
     });
   };
 
-  processArr(gpr.data, 'reference_date');
-  processArr(ecos.data, 'reference_date');
-  processArr(fred.data, 'reference_month');
-  processArr(kosis.data, 'reference_date');
+  processArr(gprData, 'reference_date');
+  processArr(ecosData, 'reference_date');
+  processArr(fredData, 'reference_month');
+  processArr(kosisData, 'reference_date');
 
-  return Array.from(map.values()).sort((a,b)=>a.reference_date?.localeCompare(b.reference_date));
+  return Array.from(map.values()).sort((a, b) => a.reference_date?.localeCompare(b.reference_date));
 }
 
 export async function fetchDashboardMetrics() {

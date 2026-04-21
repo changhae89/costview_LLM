@@ -1,5 +1,5 @@
 // screens/RiskScreen.jsx — SCR-004 리스크 지수
-import { useEffect, useMemo, useState, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import {
   ActivityIndicator,
   Animated,
@@ -14,12 +14,13 @@ import {
   TextInput,
   View,
   Modal,
-  TouchableOpacity
+  TouchableOpacity,
+  RefreshControl,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LineChart } from 'react-native-chart-kit';
 import { COLORS } from '../constants/colors';
-import { calcStats, formatNumber } from '../lib/helpers';
+import { calcStats, formatNumber, formatRefDate } from '../lib/helpers';
 import { fetchUnifiedDaily, fetchUnifiedMonthly } from '../lib/supabase';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
@@ -34,7 +35,7 @@ const VIEW_CATEGORIES = [
 
 const ALL_SERIES = {
   gpr: [
-    { key: 'ai_gpr_index', label: 'AI 지정학 위험 지수', color: '#D85A30', strokeWidth: 2 },
+    { key: 'ai_gpr_index', label: '글로벌 위기 지수', color: '#D85A30', strokeWidth: 2 },
     { key: 'oil_disruptions', label: '석유 차질(÷10)', color: '#EF9F27', strokeWidth: 1.5, div: 10 },
     { key: 'gpr_original', label: '기존 GPR', color: '#888780', MathWidth: 1 },
     { key: 'non_oil_gpr', label: '비석유', color: '#2E86AB', strokeWidth: 1.5 },
@@ -99,6 +100,8 @@ export default function RiskScreen() {
   const [daily, setDaily] = useState([]);
   const [monthly, setMonthly] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  // tooltip: { index, date, value, x, y } — onDataPointClick이 제공하는 픽셀 좌표
   const [tooltip, setTooltip] = useState(null);
 
   // 모달 및 필터 State
@@ -130,24 +133,79 @@ export default function RiskScreen() {
     setter(formatted);
   };
 
-  useEffect(() => {
-    (async () => {
-      try {
-        setLoading(true);
-        const [d, m] = await Promise.all([
-          fetchUnifiedDaily(),
-          fetchUnifiedMonthly(),
-        ]);
-        if (d?.length > 0) setDaily(d);
-        if (m?.length > 0) setMonthly(m);
-      } catch { /* mock 유지 */ }
-      finally { setLoading(false); }
-    })();
+  const loadData = useCallback(async (isRefresh = false) => {
+    try {
+      if (isRefresh) setRefreshing(true);
+      else setLoading(true);
+      
+      const [d, m] = await Promise.all([
+        fetchUnifiedDaily(),
+        fetchUnifiedMonthly(),
+      ]);
+      if (d?.length > 0) setDaily(d);
+      if (m?.length > 0) setMonthly(m);
+    } catch (e) {
+      console.warn('[RiskScreen] loadData error:', e);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  // 지표/필터 변경 시 툴팁 초기화
+  useEffect(() => {
+    setTooltip(null);
+  }, [category, tab, range]);
+
+  // 탭 전환 시 range 자동 초기화 (20: 기본값으로)
+  const prevTabRef = useRef(tab);
+  useEffect(() => {
+    if (prevTabRef.current !== tab) {
+      setRange('20');
+      prevTabRef.current = tab;
+    }
+  }, [tab]);
+
+  // ── 월간 누락 데이터 → 일간 월평균으로 보완 ───────────────────
+  const effectiveMonthly = useMemo(() => {
+    if (!monthly.length) return monthly;
+    // 일간 데이터를 YYYY-MM 단위로 그룹화
+    const dailyByMonth = {};
+    daily.forEach(d => {
+      const month = d.reference_date?.slice(0, 7);
+      if (!month) return;
+      if (!dailyByMonth[month]) dailyByMonth[month] = [];
+      dailyByMonth[month].push(d);
+    });
+    const allKeys = Object.values(ALL_SERIES).flat().map(s => s.key);
+
+    return monthly.map(m => {
+      const month = m.reference_date?.slice(0, 7);
+      const dailyRows = dailyByMonth[month] ?? [];
+      if (!dailyRows.length) return m;
+      const filled = { ...m };
+      allKeys.forEach(key => {
+        const v = filled[key];
+        // null, undefined, 빈문자, 0인 경우 일간 평균으로 대체
+        if (v == null || v === '' || Number(v) === 0) {
+          const vals = dailyRows
+            .map(d => Number(d[key]))
+            .filter(n => !isNaN(n) && n !== 0);
+          if (vals.length > 0)
+            filled[key] = vals.reduce((a, b) => a + b, 0) / vals.length;
+        }
+      });
+      return filled;
+    });
+  }, [monthly, daily]);
 
   const rawData = tab === 'daily'
     ? daily
-    : monthly.length > 0 ? monthly : daily;
+    : effectiveMonthly.length > 0 ? effectiveMonthly : daily;
 
   const slicedData = useMemo(() => {
     let result = rawData;
@@ -156,7 +214,10 @@ export default function RiskScreen() {
     } else if (range === 'custom' && startDate && endDate) {
       result = rawData.filter(d => d.reference_date >= startDate && d.reference_date <= endDate);
     } else {
-      const n = range === '10' ? 10 : 20;
+      // 일간: 10 = 10일, 20 = 20일 / 월간: 10 = 12개월(1년), 20 = 24개월(2년)
+      const n = tab === 'monthly'
+        ? (range === '10' ? 12 : 24)
+        : (range === '10' ? 10 : 20);
       result = rawData.slice(-n);
     }
 
@@ -165,7 +226,7 @@ export default function RiskScreen() {
       result = result.filter((_, i) => i % step === 0);
     }
     return result;
-  }, [rawData, range, startDate, endDate]);
+  }, [rawData, range, tab, startDate, endDate]);
 
   const pStats = useMemo(() => {
     if (!currentSeries[0]) return null;
@@ -177,8 +238,9 @@ export default function RiskScreen() {
     return calcStats(slicedData, currentSeries[1].key);
   }, [slicedData, currentSeries]);
 
-  // 그래프 가로 확대/스크롤 (보이는 데이터 포인트당 35px 지정)
-  const chartWidth = Math.max(CHART_MIN_WIDTH, slicedData.length * 35);
+  // 그래프 가로 확대/스크롤
+  // +64: react-native-chart-kit 내부 paddingRight/Left 보정 (마지막 dot 잘림 방지)
+  const chartWidth = Math.max(CHART_MIN_WIDTH, slicedData.length * 40 + 64);
   const fsChartWidth = Math.max(chartWidth, SCREEN_W * 1.5);
 
   useEffect(() => {
@@ -248,60 +310,112 @@ export default function RiskScreen() {
     return formatNumber(value);
   };
 
-  const renderLineChart = (width, height, isFullscreen = false) => (
-    <View style={{ width, height, position: 'relative' }}>
-      <LineChart
-        data={{
-          labels: chartLabels,
-          datasets: activeDatasets,
-        }}
-        width={width}
-        height={height}
-        withInnerLines
-        withOuterLines={false}
-        withShadow={false}
-        fromZero
-        chartConfig={{
-          backgroundColor: COLORS.white,
-          backgroundGradientFrom: COLORS.white,
-          backgroundGradientTo: COLORS.white,
-          decimalPlaces: 0,
-          color: (opacity = 1) => `rgba(30,58,95,${opacity})`,
-          labelColor: (opacity = 1) => `rgba(107,114,128,${opacity})`,
-          propsForDots: { r: '4', strokeWidth: '1.5', stroke: COLORS.white },
-          propsForBackgroundLines: { strokeDasharray: '', stroke: '#E5E7EB' },
-        }}
-        onDataPointClick={({ index, value }) => {
-          const row = slicedData[index];
-          if (!row) return;
-          setTooltip({ index, date: row.reference_date, value });
-        }}
-        style={{ marginLeft: -12, borderRadius: 8 }}
-      />
-      <View style={styles.hitOverlay} pointerEvents="box-none">
-        {slicedData.map((row, index) => {
-          const left = `${(index / Math.max(1, slicedData.length)) * 100}%`;
-          const width = `${100 / Math.max(1, slicedData.length)}%`;
-          return (
-            <Pressable
-              key={`hit-${index}`}
-              onPress={() => setTooltip({ index, date: row.reference_date, value: row })}
-              style={[styles.hitArea, { left, width }]}
-            />
-          );
-        })}
+  const renderLineChart = (width, height, isFullscreen = false) => {
+    const PADDING_RIGHT = 32;
+    return (
+      <View style={{ width, height, position: 'relative' }}>
+        <LineChart
+          data={{
+            labels: chartLabels,
+            datasets: activeDatasets,
+          }}
+          width={width}
+          height={height}
+          withInnerLines
+          withOuterLines={false}
+          withShadow={false}
+          fromZero
+          chartConfig={{
+            backgroundColor: COLORS.white,
+            backgroundGradientFrom: COLORS.white,
+            backgroundGradientTo: COLORS.white,
+            decimalPlaces: 0,
+            color: (opacity = 1) => `rgba(30,58,95,${opacity})`,
+            labelColor: (opacity = 1) => `rgba(107,114,128,${opacity})`,
+            // r='6': 터치 영역 확보, paddingRight: 마지막 dot 잘림 방지
+            propsForDots: { r: '6', strokeWidth: '2', stroke: COLORS.white },
+            propsForBackgroundLines: { strokeDasharray: '', stroke: '#E5E7EB' },
+            paddingRight: PADDING_RIGHT,
+          }}
+          onDataPointClick={({ index, value, x, y }) => {
+            const row = slicedData[index];
+            if (!row) return;
+            // marginLeft: -12 보정하여 tooltip x 위치 설정
+            setTooltip({ index, date: row.reference_date, value, x: x - 12, y });
+          }}
+          style={{ marginLeft: -12, borderRadius: 8 }}
+        />
+
+        {/* ── 터치 레이어: 세로 영역 어디든 눌러도 툴팁 표시 ────────────────── */}
+        <View style={[styles.hitOverlay, { zIndex: 10, elevation: 5 }]} pointerEvents="box-none">
+          {slicedData.map((row, index) => {
+            const dotX = (index * (width - PADDING_RIGHT) / Math.max(1, slicedData.length - 1));
+            const colW = width / Math.max(1, slicedData.length);
+            return (
+              <Pressable
+                key={`hit-${index}`}
+                onPress={() => {
+                  // y를 차트 상단 20% 지점으로 고정하여 툴팁이 지수를 가리지 않도록
+                  setTooltip({ index, date: row.reference_date, value: row, x: dotX, y: height * 0.2 });
+                }}
+                style={[styles.hitArea, { left: dotX - colW / 2, width: colW }]}
+              />
+            );
+          })}
+        </View>
+
+        {/* ── 툴팁 (표): 차트 포인트 위치에 표시 ─── */}
+        {tooltip && tooltip.date && slicedData[tooltip.index]?.reference_date === tooltip.date && (
+          (() => {
+            const TOOLTIP_W = 160;
+            const TOOLTIP_H = 34 + activeSeries.length * 22 + 8;
+            
+            let tooltipLeft = tooltip.x - TOOLTIP_W / 2;
+            tooltipLeft = Math.max(0, Math.min(tooltipLeft, width - TOOLTIP_W));
+
+            let tooltipTop = tooltip.y - TOOLTIP_H - 12;
+            if (tooltipTop < 10) {
+              tooltipTop = tooltip.y + 12;
+            }
+            
+            return (
+              <View
+                pointerEvents="box-none"
+                style={[styles.tooltipFloat, { left: tooltipLeft, top: tooltipTop, width: TOOLTIP_W, zIndex: 100 }]}
+              >
+                <View style={styles.tooltipPanelHeader}>
+                  <Text style={styles.tooltipDate}>{formatRefDate(tooltip.date)}</Text>
+                  <Pressable onPress={() => setTooltip(null)} hitSlop={12}>
+                    <Text style={styles.tooltipClose}>✕</Text>
+                  </Pressable>
+                </View>
+                {activeSeries.map(s => (
+                  <View key={s.key} style={styles.tooltipRow}>
+                    <View style={[styles.legendDot, { backgroundColor: s.color }]} />
+                    <Text style={styles.tooltipLabel} numberOfLines={1}>{s.label}</Text>
+                    <Text style={[styles.tooltipValue, { color: s.color }]}>
+                      {formatTooltipValue(s, slicedData[tooltip.index])}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            );
+          })()
+        )}
+
+        {/* 애니메이션 마스크 */}
+        <Animated.View
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            top: 0, bottom: 0, right: 0, left: 0,
+            backgroundColor: COLORS.white,
+            transform: [{ translateX: isFullscreen ? fsAnimMaskX : animMaskX }]
+          }}
+        />
       </View>
-      <Animated.View
-        pointerEvents="none"
-        style={{
-          position: 'absolute',
-          top: 0, bottom: 0, right: 0, left: 0,
-          backgroundColor: COLORS.white,
-          transform: [{ translateX: isFullscreen ? fsAnimMaskX : animMaskX }]
-        }}
-      />
-    </View>
-  );
+    );
+  };
 
   return (
     <View style={styles.root}>
@@ -320,20 +434,42 @@ export default function RiskScreen() {
           ))}
         </View>
 
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-          <View style={styles.tabRow}>
-            <TabBtn label="일간" active={tab === 'daily'} onPress={() => setTab('daily')} />
-            <TabBtn label="월간" active={tab === 'monthly'} onPress={() => setTab('monthly')} />
-          </View>
-          <View style={styles.rangeRow}>
-            <RangeChip label="10일" active={range === '10'} onPress={() => setRange('10')} />
-            <RangeChip label="20일" active={range === '20'} onPress={() => setRange('20')} />
-            <RangeChip label="필터" active={range === 'custom'} onPress={() => setShowFilterModal(true)} />
-          </View>
-        </View>
+        {/* 일간/월간 + 전체/10일/20일/필터 한 줄 ScrollView 통합 */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.controlRow}
+        >
+          <TabBtn label="일간" active={tab === 'daily'} onPress={() => setTab('daily')} />
+          <TabBtn label="월간" active={tab === 'monthly'} onPress={() => setTab('monthly')} />
+          <View style={styles.controlDivider} />
+          <RangeChip label="전체" active={range === 'all'} onPress={() => setRange('all')} />
+          <RangeChip
+            label={tab === 'monthly' ? '1년' : '10일'}
+            active={range === '10'}
+            onPress={() => setRange('10')}
+          />
+          <RangeChip
+            label={tab === 'monthly' ? '2년' : '20일'}
+            active={range === '20'}
+            onPress={() => setRange('20')}
+          />
+          <RangeChip label="필터" active={range === 'custom'} onPress={() => setShowFilterModal(true)} />
+        </ScrollView>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.body}>
+      <ScrollView 
+        showsVerticalScrollIndicator={false} 
+        contentContainerStyle={styles.body}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => loadData(true)}
+            tintColor={COLORS.headerBg}
+            colors={[COLORS.headerBg]}
+          />
+        }
+      >
         {loading && <ActivityIndicator color={COLORS.headerBg} style={{ marginBottom: 12 }} />}
 
         {/* 통계 카드 */}
@@ -388,36 +524,27 @@ export default function RiskScreen() {
             })}
           </View>
 
-          {slicedData.length >= 2 ? (
-            <ScrollView horizontal showsHorizontalScrollIndicator={true} bounces={false}>
-              {renderLineChart(chartWidth, 190)}
-            </ScrollView>
-          ) : (
-            <Text style={{ textAlign: 'center', color: '#999', marginVertical: 30 }}>데이터 부족</Text>
-          )}
+          {/* 차트 컨테이너 */}
+          <View>
+            {loading ? (
+              // 스켈레톤 로딩 UI
+              <View style={styles.skeletonChart}>
+                <View style={styles.skeletonBar} />
+                <View style={[styles.skeletonBar, { width: '60%', opacity: 0.5 }]} />
+                <View style={[styles.skeletonBar, { width: '80%', opacity: 0.7 }]} />
+                <View style={[styles.skeletonBar, { width: '40%', opacity: 0.4 }]} />
+                <Text style={styles.skeletonText}>지수 데이터 로딩 중...</Text>
+              </View>
+            ) : slicedData.length >= 2 ? (
+              <ScrollView horizontal showsHorizontalScrollIndicator={true} bounces={false}>
+                {renderLineChart(chartWidth, 190)}
+              </ScrollView>
+            ) : (
+              <Text style={{ textAlign: 'center', color: '#999', marginVertical: 30 }}>데이터 부족</Text>
+            )}
+          </View>
 
           <Text style={styles.chartNote}>* 차트 포인트를 터치하면 해당 날짜의 지수 값을 확인할 수 있습니다.</Text>
-
-          {/* ── 터치 툴팁 패널 ─────────────────────────────── */}
-          {tooltip && (
-            <View style={styles.tooltipPanel}>
-              <View style={styles.tooltipPanelHeader}>
-                <Text style={styles.tooltipDate}>{tooltip.date}</Text>
-                <Pressable onPress={() => setTooltip(null)} hitSlop={8}>
-                  <Text style={styles.tooltipClose}>닫기</Text>
-                </Pressable>
-              </View>
-              {activeSeries.map(s => (
-                <View key={s.key} style={styles.tooltipRow}>
-                  <View style={[styles.legendDot, { backgroundColor: s.color }]} />
-                  <Text style={styles.tooltipLabel}>{s.label}</Text>
-                  <Text style={[styles.tooltipValue, { color: s.color }]}>
-                    {formatTooltipValue(s, slicedData[tooltip.index])}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          )}
         </View>
         <View style={{ height: 20 }} />
       </ScrollView>
@@ -480,6 +607,28 @@ export default function RiskScreen() {
           <View style={styles.fsBody}>
             <Text style={styles.chartSubtitle}>{dateRange} 세부 동향</Text>
 
+            {/* 전체화면 통계 카드 */}
+            {pStats && (
+              <View style={[styles.statsGrid, { marginBottom: 16 }]}>
+                <StatCell
+                  label={currentSeries[0]?.label}
+                  value={formatNumber(pStats.last)}
+                  sub={pStats.change > 0 ? `▲+${pStats.change}` : `▼${pStats.change}`}
+                  subColor={pStats.change > 0 ? COLORS.up : COLORS.down}
+                />
+                {sStats && currentSeries[1] && (
+                  <StatCell
+                    label={currentSeries[1]?.label}
+                    value={formatNumber(sStats.last)}
+                    sub={sStats.change > 0 ? `▲+${sStats.change}` : `▼${sStats.change}`}
+                    subColor={sStats.change > 0 ? COLORS.up : COLORS.down}
+                  />
+                )}
+                <StatCell label="기간 최고" value={formatNumber(pStats.max)} sub={pStats.maxDate ?? ''} />
+                <StatCell label="기간 최저" value={formatNumber(pStats.min)} sub={pStats.minDate ?? ''} />
+              </View>
+            )}
+
             <View style={styles.legendRow}>
               {currentSeries.map(s => {
                 const isActive = visibleSeries[s.key];
@@ -499,7 +648,7 @@ export default function RiskScreen() {
             </View>
 
             <ScrollView horizontal showsHorizontalScrollIndicator={true} bounces={false}>
-              {renderLineChart(fsChartWidth, SCREEN_H * 0.65, true)}
+              {renderLineChart(fsChartWidth, SCREEN_H * 0.55, true)}
             </ScrollView>
           </View>
         </View>
@@ -525,6 +674,10 @@ const styles = StyleSheet.create({
   tabBtnActive: { backgroundColor: COLORS.white },
   tabBtnText: { fontSize: 12, color: 'rgba(255,255,255,0.65)' },
   tabBtnTextActive: { color: COLORS.headerBg, fontWeight: '700' },
+
+  // 일간/월간 + 전체/10일/20일/필터 통합 한 줄 콘트롤 바
+  controlRow: { flexDirection: 'row', gap: 8, paddingBottom: 4, alignItems: 'center' },
+  controlDivider: { width: 1, height: 16, backgroundColor: 'rgba(255,255,255,0.25)', marginHorizontal: 2 },
 
   // Range chips
   rangeRow: { flexDirection: 'row', gap: 8 },
@@ -569,26 +722,34 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
 
-  // Tooltip panel
-  tooltipPanel: {
-    marginTop: 12,
-    backgroundColor: '#F8F9FF',
+  // Tooltip float (포인트 위치에 뜨는 팝업)
+  tooltipFloat: {
+    position: 'absolute',
+    backgroundColor: 'rgba(15,23,42,0.92)',
     borderRadius: 10,
-    padding: 10,
+    padding: 8,
     borderWidth: 1,
-    borderColor: '#E8EAFE',
+    borderColor: 'rgba(255,255,255,0.12)',
+    zIndex: 999,
+    // iOS shadow
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    // Android
+    elevation: 8,
   },
   tooltipPanelHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 6,
   },
-  tooltipDate:  { fontSize: 12, fontWeight: '700', color: COLORS.textPrimary },
-  tooltipClose: { fontSize: 14, color: COLORS.textMuted, padding: 2 },
-  tooltipRow:   { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
-  tooltipLabel: { flex: 1, fontSize: 11, color: COLORS.textMuted },
-  tooltipValue: { fontSize: 12, fontWeight: '700' },
+  tooltipDate:  { fontSize: 11, fontWeight: '700', color: '#E2E8F0' },
+  tooltipClose: { fontSize: 13, color: '#94A3B8', padding: 2 },
+  tooltipRow:   { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 3 },
+  tooltipLabel: { flex: 1, fontSize: 10, color: '#94A3B8' },
+  tooltipValue: { fontSize: 11, fontWeight: '700' },
 
   // Filter Modal
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 },
@@ -613,5 +774,10 @@ const styles = StyleSheet.create({
   fsTitle: { fontSize: 18, fontWeight: '700', color: COLORS.white },
   fsCloseBtn: { padding: 8, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 8 },
   fsCloseText: { fontSize: 13, fontWeight: '700', color: COLORS.white },
-  fsBody: { flex: 1, padding: 20, paddingTop: 30 },
+  fsBody: { flex: 1, padding: 16, paddingTop: 20 },
+
+  // 스켈레톤 로딩
+  skeletonChart: { height: 190, backgroundColor: '#F3F4F6', borderRadius: 8, justifyContent: 'center', alignItems: 'center', gap: 10, padding: 20 },
+  skeletonBar: { width: '100%', height: 8, backgroundColor: '#E5E7EB', borderRadius: 4 },
+  skeletonText: { fontSize: 12, color: COLORS.textLight, marginTop: 8 },
 });

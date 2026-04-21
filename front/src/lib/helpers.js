@@ -41,18 +41,37 @@ export function formatNumber(val) {
   return Number(val).toLocaleString('ko-KR', { maximumFractionDigits: 1 });
 }
 
-/** 차트 통계 계산 */
+/** 차트 통계 계산 — null/undefined는 계산에서 제외 (0으로 대체 시 최솟값 왜곡 발생) */
 export function calcStats(data, key) {
   if (!data || data.length < 2) return null;
-  const vals = data.map(d => Number(d[key]) || 0);
+
+  // null/undefined/NaN 제거 후 실제 데이터만 사용
+  const validPairs = data
+    .map((d, i) => ({ val: Number(d[key]), i, date: d.reference_date }))
+    .filter(({ val }) => !isNaN(val) && val !== null && val !== undefined);
+
+  if (validPairs.length < 2) return null;
+
+  const vals = validPairs.map(p => p.val);
   const last = vals[vals.length - 1];
   const prev = vals[vals.length - 2];
   const change = parseFloat((last - prev).toFixed(1));
   const max = Math.max(...vals);
   const min = Math.min(...vals);
-  const maxIdx = vals.indexOf(max);
-  const minIdx = vals.indexOf(min);
-  const maxDate = data[maxIdx]?.reference_date;
-  const minDate = data[minIdx]?.reference_date;
+  const maxDate = validPairs[vals.indexOf(max)]?.date;
+  const minDate = validPairs[vals.indexOf(min)]?.date;
   return { last, change, max, min, maxDate, minDate };
+}
+
+/** 날짜 시간 표시 (2026.04.21 11:44) */
+export function formatDateTime(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return dateStr;
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  return `${y}.${m}.${dd} ${hh}:${mm}`;
 }
