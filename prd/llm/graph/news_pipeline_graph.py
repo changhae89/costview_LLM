@@ -147,9 +147,14 @@ def _summary_has_minimum_format(summary: str) -> bool:
     return all(_extract_summary_field(summary, field) for field in required)
 
 
+def _extract_summary_ko(summary: str) -> str:
+    return _extract_summary_field(summary, "summary_ko")
+
+
 def _summary_has_grounding_issue(content: str, summary: str) -> bool:
     content_lower = (content or "").lower()
-    summary_lower = (summary or "").lower()
+    summary_without_ko = re.sub(r"(?im)^summary_ko:.*$", "", summary or "")
+    summary_lower = summary_without_ko.lower()
 
     # 숫자 일치 체크 제거: LLM이 단위 변환($→p, gallon→litre 등)하면 오탐 발생
     # 키워드 기반 체크만 유지: 요약에 inflation/CPI 등이 등장했는데 기사에 전혀 없으면 hallucination
@@ -186,10 +191,11 @@ def _cost_signal_is_core_topic(title: str, content: str, summary: str) -> bool:
 
 
 def _skip_from_summary(summary: str, event: str, reason: str) -> dict[str, Any]:
+    summary_ko = _extract_summary_ko(summary)
     return {
         "summary": summary,
         "result": {
-            "summary": summary,
+            "summary": summary_ko,
             "event": event,
             "mechanism": "",
             "related_indicators": [],
@@ -558,7 +564,7 @@ def validate_causal_node(state: NewsState) -> NewsState:
             elapsed = time.perf_counter() - started_at
             print(f"[validate][news_id={news_id}] elapsed={elapsed:.2f}s result=skip(empty_effects)")
             return {
-                "result": {"summary": state["summary"], **causal, "_skip": True},
+                "result": {"summary": _extract_summary_ko(state["summary"]), **causal, "_skip": True},
                 "error": "",
                 "stage": "validate_causal",
                 "trace": _append_trace(
@@ -570,7 +576,7 @@ def validate_causal_node(state: NewsState) -> NewsState:
                 ),
             }
         validate_causal_result(causal, summary=state.get("summary", ""))
-        result = {"summary": state["summary"], **causal}
+        result = {"summary": _extract_summary_ko(state["summary"]), **causal}
         elapsed = time.perf_counter() - started_at
         print(f"[validate][news_id={news_id}] elapsed={elapsed:.2f}s result=success")
         return {
