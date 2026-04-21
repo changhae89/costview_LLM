@@ -4,9 +4,6 @@ from __future__ import annotations
 
 from functools import lru_cache
 
-from prd.db.connection import get_connection
-from prd.db.fetch import fetch_active_cost_categories
-
 DEFAULT_ALLOWED_CATEGORIES = (
     "oil",
     "fuel",
@@ -72,6 +69,8 @@ def _default_category_dicts() -> tuple[dict, ...]:
 @lru_cache(maxsize=1)
 def get_allowed_categories() -> tuple[dict, ...]:
     try:
+        from prd.db.connection import get_connection
+        from prd.db.fetch import fetch_active_cost_categories
         connection = get_connection()
     except Exception:
         return _default_category_dicts()
