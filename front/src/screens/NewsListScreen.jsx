@@ -23,9 +23,9 @@ import DirectionDot from '../components/DirectionDot';
 import ReliabilityBadge from '../components/ReliabilityBadge';
 import { CATEGORY_MAP, DIRECTION_MAP, MAGNITUDE_MAP, formatCategory } from '../constants/category';
 import { COLORS } from '../constants/colors';
-import { fetchNewsList } from '../lib/supabase';
 import { formatDateTime } from '../lib/helpers';
 import NewsDetailView from '../components/NewsDetailView';
+import { useNews } from '../hooks/useNews';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -96,37 +96,14 @@ function NewsCard({ item, onPress }) {
 // ── 목록 메인 ─────────────────────────────────────────────────
 export default function NewsListScreen() {
   const insets = useSafeAreaInsets();
-  const [newsList, setNewsList] = useState([]);
+  const { newsList, loading, refreshing, refetch } = useNews();
   const [selected, setSelected] = useState(null);
   const [query, setQuery] = useState('');
   const [dirFilter, setDirFilter] = useState('');
   const [catFilter, setCatFilter] = useState('');
   const [sortAsc, setSortAsc] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [hasError, setHasError] = useState(false);
 
-  const loadData = useCallback(async (isRefresh = false) => {
-    try {
-      if (isRefresh) setRefreshing(true);
-      else setLoading(true);
-      setHasError(false);
-      
-      const data = await fetchNewsList();
-      if (data?.length > 0) setNewsList(data);
-    } catch (e) {
-      console.warn('[NewsListScreen] loadData error:', e);
-      setHasError(true);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
 
   // 안드로이드 하드웨어 뒤로가기 대응
   useEffect(() => {
@@ -235,20 +212,14 @@ export default function NewsListScreen() {
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={() => loadData(true)}
+            onRefresh={refetch}
             tintColor={COLORS.headerBg}
             colors={[COLORS.headerBg]}
           />
         }
       >
         {loading && <ActivityIndicator color={COLORS.headerBg} style={{ marginBottom: 12, marginTop: 20 }} />}
-        {hasError && (
-          <View style={styles.errorBox}>
-            <Text style={styles.errorText}>🔌 데이터를 불러오지 못했어요.</Text>
-            <Text style={styles.errorSub}>네트워크 연결을 확인해주세요.</Text>
-          </View>
-        )}
-        {!loading && !hasError && filtered.length === 0 && (
+        {!loading && filtered.length === 0 && (
           <Text style={styles.emptyText}>조건에 맞는 뉴스가 없습니다.</Text>
         )}
         {filtered.map(item => (

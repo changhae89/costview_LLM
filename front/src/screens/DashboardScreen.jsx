@@ -1,5 +1,5 @@
 // screens/DashboardScreen.jsx — SCR-001 대시보드
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   BackHandler,
@@ -17,9 +17,8 @@ import DirectionDot from '../components/DirectionDot';
 import ReliabilityBadge from '../components/ReliabilityBadge';
 import { CATEGORY_MAP, DIRECTION_MAP, MAGNITUDE_MAP, formatCategory } from '../constants/category';
 import { COLORS } from '../constants/colors';
-import { formatNumber } from '../lib/helpers';
-import { fetchCausalChains, fetchDashboardMetrics, fetchNewsList } from '../lib/supabase';
-import { formatDateTime } from '../lib/helpers';
+import { formatDateTime, formatNumber } from '../lib/helpers';
+import { useDashboard } from '../hooks/useDashboard';
 import NewsDetailView from '../components/NewsDetailView';
 
 
@@ -143,47 +142,24 @@ function NewsRow({ item, isLast, onPress }) {
 
 export default function DashboardScreen() {
   const insets = useSafeAreaInsets();
-  const [metrics, setMetrics] = useState(null);
-  const [chains, setChains] = useState([]);
-  const [news, setNews] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [hasError, setHasError] = useState(false);
+  const { metrics, chains: rawChains, newsList, loading, refreshing, refetch } = useDashboard();
   const [selected, setSelected] = useState(null);
 
-  const loadData = useCallback(async (isRefresh = false) => {
-    try {
-      if (isRefresh) setRefreshing(true);
-      else setLoading(true);
-      setHasError(false);
-      const [dash, ch, nw] = await Promise.all([
-        fetchDashboardMetrics(),
-        fetchCausalChains(),
-        fetchNewsList(),
-      ]);
-      if (dash) setMetrics(dash);
-      if (ch?.length > 0) {
-        const grouped = {};
-        ch.forEach(c => {
-          if (!grouped[c.category]) {
-            grouped[c.category] = { ...c, news_count: 1 };
-          } else {
-            grouped[c.category].news_count += 1;
-          }
-        });
-        setChains(Object.values(grouped));
+  // 카테고리별 그룹핑 (중복 체인 카운팅)
+  const chains = useMemo(() => {
+    if (!rawChains?.length) return [];
+    const grouped = {};
+    rawChains.forEach(c => {
+      if (!grouped[c.category]) {
+        grouped[c.category] = { ...c, news_count: 1 };
+      } else {
+        grouped[c.category].news_count += 1;
       }
-      if (nw?.length > 0) setNews(nw.slice(0, 5));
-    } catch (e) {
-      console.warn('[DashboardScreen] loadData error:', e);
-      setHasError(true);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
+    });
+    return Object.values(grouped);
+  }, [rawChains]);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  const news = useMemo(() => newsList.slice(0, 5), [newsList]);
 
   // 뒤로가기 핸들링
   useEffect(() => {
@@ -248,7 +224,7 @@ export default function DashboardScreen() {
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={() => loadData(true)}
+            onRefresh={refetch}
             tintColor={COLORS.headerBg}
             colors={[COLORS.headerBg]}
           />
@@ -256,13 +232,6 @@ export default function DashboardScreen() {
       >
         {loading && <ActivityIndicator color={COLORS.headerBg} style={{ marginBottom: 12 }} />}
 
-        {/* 에러 상태 UI */}
-        {hasError && (
-          <View style={styles.errorBox}>
-            <Text style={styles.errorText}>🔌 데이터를 불러오지 못했어요.</Text>
-            <Text style={styles.errorSub}>아래로 당겨서 다시 시도해보세요.</Text>
-          </View>
-        )}
 
         {/* 카테고리별 가격 영향 */}
         <Text style={styles.sectionLabel}>카테고리별 가격 영향</Text>

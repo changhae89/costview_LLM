@@ -14,8 +14,6 @@ from pathlib import Path
 from typing import Any, TypedDict
 
 import httpx
-import psycopg2
-import psycopg2.extras
 from dotenv import load_dotenv
 from langchain_core.runnables import RunnableLambda
 from langgraph.graph import END, StateGraph
@@ -159,79 +157,16 @@ def load_env() -> None:
 
 
 def get_connection():
+    # Only Supabase is supported now
     load_env()
-    if is_supabase_configured():
+    if not is_supabase_configured():
         raise RuntimeError(
-            "SUPABASE_URL and SUPABASE_ANON_KEY are configured. Use create_sb() and supabase_store instead."
+            "Configure SUPABASE_URL with SUPABASE_ANON_KEY to run the data collector."
         )
-    url = os.environ.get("API_KEY") or os.environ.get("DATABASE_URL", "")
-    if not url:
-        raise RuntimeError(
-            "Set API_KEY or DATABASE_URL, or configure SUPABASE_URL with SUPABASE_ANON_KEY."
-        )
-    if "sslmode" not in url:
-        url += "?sslmode=require" if "?" not in url else "&sslmode=require"
-    conn = psycopg2.connect(url)
-    conn.autocommit = False
-    return conn
+    return None
 
 
-def fetch_consumer_keywords(conn, limit: int = 50) -> list[str]:
-    sql = """
-        SELECT COALESCE(NULLIF(BTRIM(keyword_en), ''), NULLIF(BTRIM(keyword_kr), '')) AS keyword
-        FROM consumer_items
-        WHERE category_kr = %s
-          AND COALESCE(is_deleted, false) = false
-          AND COALESCE(NULLIF(BTRIM(keyword_en), ''), NULLIF(BTRIM(keyword_kr), '')) IS NOT NULL
-        ORDER BY COALESCE(NULLIF(BTRIM(keyword_en), ''), NULLIF(BTRIM(keyword_kr), '')) ASC
-        LIMIT %s;
-    """
-    with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-        cur.execute(sql, (CONSUMER_CATEGORY, limit))
-        rows = cur.fetchall()
-    keywords = [str(row["keyword"]).strip() for row in rows if row.get("keyword")]
-    log(f"[consumer_keywords] count={len(keywords)}")
-    for i, keyword in enumerate(keywords, 1):
-        log(f"  {i:3d}. {keyword}")
-    return keywords
-
-
-def fetch_cost_categories(conn, limit: int = 50) -> list[dict[str, Any]]:
-    sql = """
-        SELECT code, name_ko, name_en, group_code, keywords, sort_order
-        FROM cost_categories
-        WHERE is_active = true
-        ORDER BY sort_order ASC, code ASC
-        LIMIT %s;
-    """
-    with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-        cur.execute(sql, (limit,))
-        rows = cur.fetchall()
-
-    categories: list[dict[str, Any]] = []
-    for row in rows:
-        keywords = [
-            str(keyword).strip()
-            for keyword in (row.get("keywords") or [])
-            if str(keyword).strip()
-        ]
-        if not keywords:
-            continue
-        categories.append(
-            {
-                "code": str(row.get("code") or "").strip(),
-                "name_ko": str(row.get("name_ko") or "").strip(),
-                "name_en": str(row.get("name_en") or "").strip(),
-                "group_code": str(row.get("group_code") or "").strip(),
-                "keywords": keywords,
-                "sort_order": int(row.get("sort_order") or 0),
-            }
-        )
-
-    log(f"[cost_categories] count={len(categories)}")
-    for i, category in enumerate(categories, 1):
-        log(f"  {i:3d}. {category['code']} keywords={len(category['keywords'])}")
-    return categories
+# PostgreSQL specific fetch methods removed, unified with Supabase
 
 
 def build_guardian_query(cost_categories: list[dict[str, Any]]) -> str:
@@ -470,50 +405,7 @@ def extract_directional_items(title: str, content: str) -> dict[str, list[str]]:
 
 
 def upsert_history(conn, rows: list[dict[str, Any]]) -> int:
-    if not rows:
-        return 0
-
-    db_rows = []
-    skipped_conflicted = 0
-    for item in rows:
-        row = dict(item)
-        has_increased = row.get("increased_items") is not None
-        has_decreased = row.get("decreased_items") is not None
-        if not (has_increased ^ has_decreased):
-            skipped_conflicted += 1
-            continue
-        db_rows.append(row)
-
-    if skipped_conflicted:
-        print(f"[history] skipped_conflicted_direction={skipped_conflicted}")
-    if not db_rows:
-        return 0
-
-    sql = """
-        INSERT INTO raw_news
-            (title, content, news_url, origin_published_at, keyword, increased_items, decreased_items)
-        SELECT
-            %(title)s, %(content)s, %(news_url)s, %(origin_published_at)s, %(keyword)s,
-            %(increased_items)s, %(decreased_items)s
-        WHERE (%(increased_items)s IS NOT NULL) != (%(decreased_items)s IS NOT NULL)
-        ON CONFLICT (news_url) DO UPDATE SET
-            title = EXCLUDED.title,
-            content = EXCLUDED.content,
-            origin_published_at = EXCLUDED.origin_published_at,
-            keyword = (
-                SELECT ARRAY(
-                    SELECT DISTINCT x
-                    FROM unnest(raw_news.keyword || EXCLUDED.keyword) AS t(x)
-                )
-            ),
-            increased_items = EXCLUDED.increased_items,
-            decreased_items = EXCLUDED.decreased_items,
-            updated_at = NOW();
-    """
-    with conn.cursor() as cur:
-        psycopg2.extras.execute_batch(cur, sql, db_rows, page_size=100)
-    conn.commit()
-    return len(db_rows)
+    raise RuntimeError("PostgreSQL upsert has been removed. Use Supabase equivalent.")
 
 
 def parse_args() -> argparse.Namespace:
@@ -659,7 +551,7 @@ def _save_rows_for_batch(state: HistoryRunState) -> dict[str, Any]:
     if state["use_supabase"]:
         saved = upsert_history_sb(state["sb"], batch_rows)
     else:
-        saved = upsert_history(state["conn"], batch_rows)
+        raise RuntimeError("Non-supabase usage is no longer supported.")
 
     category_saved_totals = dict(state.get("category_saved_totals", {}))
     saved_by_category: dict[str, int] = {}
@@ -736,13 +628,7 @@ def init_run_node(_: HistoryRunState) -> dict[str, Any]:
         log("[history] fetching cost categories from supabase")
         cost_categories = fetch_cost_categories_sb(sb, limit=50)
     else:
-        log("[history] opening postgres connection")
-        conn = get_connection()
-        log("[history] DB: Postgres (API_KEY / DATABASE_URL)")
-        log("[history] fetching consumer keywords from postgres")
-        domain_keywords = fetch_consumer_keywords(conn, limit=50)
-        log("[history] fetching cost categories from postgres")
-        cost_categories = fetch_cost_categories(conn, limit=50)
+        raise RuntimeError("Supabase configuration is missing.")
 
     if not domain_keywords:
         log("[history] no consumer domain keywords found; exiting")

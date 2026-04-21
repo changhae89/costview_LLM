@@ -1,4 +1,3 @@
-// screens/RiskScreen.jsx — SCR-004 리스크 지수
 import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import {
   ActivityIndicator,
@@ -21,7 +20,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LineChart } from 'react-native-chart-kit';
 import { COLORS } from '../constants/colors';
 import { calcStats, formatNumber, formatRefDate } from '../lib/helpers';
-import { fetchUnifiedDaily, fetchUnifiedMonthly } from '../lib/supabase';
+import { useRiskData } from '../hooks/useRiskData';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 const CHART_MIN_WIDTH = SCREEN_W - 28;
@@ -97,10 +96,9 @@ export default function RiskScreen() {
   const [category, setCategory] = useState('gpr');
   const [tab, setTab] = useState('daily');   // 'daily' | 'monthly'
   const [range, setRange] = useState('20');
-  const [daily, setDaily] = useState([]);
-  const [monthly, setMonthly] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const { daily, monthly, loading, refreshing, refetch } = useRiskData();
+
+
   // tooltip: { index, date, value, x, y } — onDataPointClick이 제공하는 픽셀 좌표
   const [tooltip, setTooltip] = useState(null);
 
@@ -133,30 +131,8 @@ export default function RiskScreen() {
     setter(formatted);
   };
 
-  const loadData = useCallback(async (isRefresh = false) => {
-    try {
-      if (isRefresh) setRefreshing(true);
-      else setLoading(true);
-      
-      const [d, m] = await Promise.all([
-        fetchUnifiedDaily(),
-        fetchUnifiedMonthly(),
-      ]);
-      if (d?.length > 0) setDaily(d);
-      if (m?.length > 0) setMonthly(m);
-    } catch (e) {
-      console.warn('[RiskScreen] loadData error:', e);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
 
-  // 지표/필터 변경 시 툴팁 초기화
   useEffect(() => {
     setTooltip(null);
   }, [category, tab, range]);
@@ -464,7 +440,7 @@ export default function RiskScreen() {
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={() => loadData(true)}
+            onRefresh={refetch}
             tintColor={COLORS.headerBg}
             colors={[COLORS.headerBg]}
           />
