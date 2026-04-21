@@ -1,0 +1,90 @@
+name: Data Sync All
+
+on:
+  schedule:
+    - cron: '0 0 * * *'  # 한국 시간 오전 9시 (UTC 00:00)
+  workflow_dispatch:      # 수동 실행 버튼
+
+jobs:
+  sync_all:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./data_collector
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Node Dependencies
+        run: npm install
+
+      - name: Install Python Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install requests
+
+      # ==========================================
+      # ⬇️ DAILY INDICATORS (일간 지표 데이터 수집) ⬇️
+      # ==========================================
+
+      - name: "[Daily] ECOS Fetch (환율, 금리)"
+        continue-on-error: true
+        run: node src/data_mining/ECOS/fetch-ecos-daily.js
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          ECOS_API_KEY: ${{ secrets.ECOS_API_KEY }}
+
+      - name: "[Daily] FRED Fetch"
+        continue-on-error: true
+        run: python src/data_mining/fetch_fred_data.py
+        env:
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+
+      - name: "[Daily] GPR Fetch"
+        continue-on-error: true
+        run: node src/data_mining/GPR/fetch-gpr-daily.js
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+
+      - name: "[Daily] War News Fetch"
+        continue-on-error: true
+        run: python src/data_mining/fetch_war_news.py
+        env:
+          EXA_API_KEY: ${{ secrets.EXA_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+
+      # ==========================================
+      # ⬇️ MONTHLY INDICATORS (월간 지표 데이터 수집) ⬇️
+      # ==========================================
+
+      - name: "[Monthly] ECOS Fetch (원유·천연가스 수입물가지수)"
+        continue-on-error: true
+        run: node src/data_mining/ECOS/fetch-ecos-monthly.js
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          ECOS_API_KEY: ${{ secrets.ECOS_API_KEY }}
+
+      - name: "[Monthly] KOSIS Fetch (소비자물가 10대 지수)"
+        continue-on-error: true
+        run: node src/data_mining/KOSIS/fetch-kosis-monthly.js
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          KOSIS_API_KEY: ${{ secrets.KOSIS_API_KEY }}
