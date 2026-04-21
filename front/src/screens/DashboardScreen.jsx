@@ -1,25 +1,29 @@
 // screens/DashboardScreen.jsx — SCR-001 대시보드
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  BackHandler,
   Platform,
+  RefreshControl,
   ScrollView,
   StatusBar,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import DirectionDot from '../components/DirectionDot';
 import ReliabilityBadge from '../components/ReliabilityBadge';
-import { CATEGORY_MAP, DIRECTION_MAP, MAGNITUDE_MAP } from '../constants/category';
+import { CATEGORY_MAP, DIRECTION_MAP, MAGNITUDE_MAP, formatCategory } from '../constants/category';
 import { COLORS } from '../constants/colors';
-import { formatNumber } from '../lib/helpers';
-import { fetchCausalChains, fetchDashboardMetrics, fetchNewsList } from '../lib/supabase';
+import { formatDateTime, formatNumber } from '../lib/helpers';
+import { useDashboard } from '../hooks/useDashboard';
+import NewsDetailView from '../components/NewsDetailView';
 
 
 // ── 리스크 카드 ────────────────────────────────────────────────
-function RiskCard({ label, desc, value, change, date }) {
+function RiskCard({ label, desc, value, change, date, maxValue }) {
   const changeNum = Number(change);
   const changeColor = changeNum > 0 ? '#FF8A7A' : '#6EE7B7';
   const changeText = changeNum > 0
@@ -27,6 +31,18 @@ function RiskCard({ label, desc, value, change, date }) {
     : changeNum < 0
       ? `▼${Math.abs(changeNum).toFixed(1)}`
       : '─ 0.0';
+  // 실제 값 비율로 게이지 계산 (0~100%)
+  const fillPct = maxValue && maxValue > 0 && value != null
+    ? Math.min(100, Math.max(5, (Number(value) / maxValue) * 100))
+    : 60;
+
+  // 비율에 따라 게이지 바 색상 결정
+  // 0~24%: 파란색, 25~49%: 노란색, 50~74%: 주황색, 75~100%: 빨간색
+  const gaugeColor =
+    fillPct < 25 ? '#60A5FA' :   // 파란색
+    fillPct < 50 ? '#FBBF24' :   // 노란색
+    fillPct < 75 ? '#F97316' :   // 주황색
+                   '#EF4444';    // 빨간색
 
   return (
     <View style={styles.riskCard}>
@@ -34,7 +50,7 @@ function RiskCard({ label, desc, value, change, date }) {
       {desc && <Text style={{fontSize: 8, color: 'rgba(255,255,255,0.4)', marginBottom: 4}}>{desc}</Text>}
       <Text style={styles.riskValue} numberOfLines={1}>{value !== null && value !== undefined && value !== '' ? formatNumber(value) : '-'}</Text>
       <View style={styles.riskBar}>
-        <View style={styles.riskBarFill} />
+        <View style={[styles.riskBarFill, { width: `${fillPct}%`, backgroundColor: gaugeColor }]} />
       </View>
       <Text style={[styles.riskChange, { color: changeColor }]}>{changeText}</Text>
       {date ? <Text style={styles.riskDate}>{date}</Text> : null}
@@ -44,7 +60,7 @@ function RiskCard({ label, desc, value, change, date }) {
 
 // ── 카테고리 행 ────────────────────────────────────────────────
 function CategoryRow({ item, isLast }) {
-  const catName = CATEGORY_MAP[item.category] ?? item.category;
+  const catName = formatCategory(item.category);
   const dir = DIRECTION_MAP[item.direction] ?? DIRECTION_MAP.neutral;
   const mag = MAGNITUDE_MAP[item.magnitude] ?? MAGNITUDE_MAP.low;
   const min = item.change_pct_min ?? 0;
@@ -81,27 +97,37 @@ function CategoryRow({ item, isLast }) {
 }
 
 // ── 뉴스 행 ───────────────────────────────────────────────────
-function NewsRow({ item, isLast }) {
+function NewsRow({ item, isLast, onPress }) {
   const mainChain = item.causal_chains?.[0];
   const keywords = item.raw_news?.keyword?.slice(0, 3) ?? [];
 
+  // 날짜/시간 포맷팅 (공용 헬퍼 사용)
+  const dateStr = formatDateTime(item.raw_news?.origin_published_at ?? item.created_at);
+
   return (
-    <View style={[styles.newsRow, !isLast && styles.rowBorder]}>
+    <TouchableOpacity 
+      style={[styles.newsRow, !isLast && styles.rowBorder]}
+      onPress={() => onPress(item)}
+      activeOpacity={0.7}
+    >
       <View style={styles.newsRowTop}>
         <DirectionDot direction={mainChain?.direction ?? 'neutral'} size={7} />
         <Text style={styles.newsTitle} numberOfLines={2}>{item.summary}</Text>
+      </View>
+      <View style={styles.newsRowInfo}>
+        <Text style={styles.newsDateText}>{dateStr}</Text>
         <ReliabilityBadge reliability={item.reliability} />
       </View>
       <Text style={styles.newsSummaryEn} numberOfLines={1}>{item.raw_news?.title ?? ''}</Text>
       <View style={styles.tagRow}>
         {(item.raw_news?.increased_items ?? []).map(k => (
           <View key={k} style={[styles.tag, { backgroundColor: COLORS.tagUpBg }]}>
-            <Text style={[styles.tagText, { color: COLORS.tagUpText }]}>▲{k}</Text>
+            <Text style={[styles.tagText, { color: COLORS.tagUpText }]}>▲{formatCategory(k)}</Text>
           </View>
         ))}
         {(item.raw_news?.decreased_items ?? []).map(k => (
           <View key={k} style={[styles.tag, { backgroundColor: COLORS.tagDownBg }]}>
-            <Text style={[styles.tagText, { color: COLORS.tagDownText }]}>▼{k}</Text>
+            <Text style={[styles.tagText, { color: COLORS.tagDownText }]}>▼{formatCategory(k)}</Text>
           </View>
         ))}
         {keywords.map(k => (
@@ -110,53 +136,53 @@ function NewsRow({ item, isLast }) {
           </View>
         ))}
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 
 export default function DashboardScreen() {
   const insets = useSafeAreaInsets();
-  const [metrics, setMetrics] = useState(null);
-  const [chains, setChains] = useState([]);
-  const [news, setNews] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { metrics, chains: rawChains, newsList, loading, refreshing, refetch } = useDashboard();
+  const [selected, setSelected] = useState(null);
 
+  // 카테고리별 그룹핑 (중복 체인 카운팅)
+  const chains = useMemo(() => {
+    if (!rawChains?.length) return [];
+    const grouped = {};
+    rawChains.forEach(c => {
+      if (!grouped[c.category]) {
+        grouped[c.category] = { ...c, news_count: 1 };
+      } else {
+        grouped[c.category].news_count += 1;
+      }
+    });
+    return Object.values(grouped);
+  }, [rawChains]);
+
+  const news = useMemo(() => newsList.slice(0, 5), [newsList]);
+
+  // 뒤로가기 핸들링
   useEffect(() => {
-    (async () => {
-      try {
-        setLoading(true);
-        const [dash, ch, nw] = await Promise.all([
-          fetchDashboardMetrics(),
-          fetchCausalChains(),
-          fetchNewsList(),
-        ]);
-        if (dash) setMetrics(dash);
-        if (ch?.length > 0) {
-          const grouped = {};
-          ch.forEach(c => {
-            if (!grouped[c.category]) {
-              grouped[c.category] = { ...c, news_count: 1 };
-            } else {
-              grouped[c.category].news_count += 1;
-            }
-          });
-          setChains(Object.values(grouped));
-        }
-        if (nw?.length > 0) setNews(nw.slice(0, 5));
-      } catch { /* Supabase 미연결 시 mock 유지 */ }
-      finally { setLoading(false); }
-    })();
-  }, []);
+    const onBackPress = () => {
+      if (selected) {
+        setSelected(null);
+        return true;
+      }
+      return false;
+    };
+    const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+    return () => sub.remove();
+  }, [selected]);
 
   const latest = metrics?.latest ?? {};
   const prev   = metrics?.prev ?? {};
 
   const CARDS = [
-    { key: 'ai_gpr', label: 'AI 지수', desc: '지정학 위험 지수', val: latest.ai_gpr_index, pval: prev.ai_gpr_index, date: latest.dates?.ai_gpr_index ?? latest.reference_date },
-    { key: 'krw_usd', label: '원/달러 환율', desc: '거시 경제 환율', val: latest.krw_usd_rate, pval: prev.krw_usd_rate, date: latest.dates?.krw_usd_rate ?? latest.reference_date },
-    { key: 'wti', label: 'WTI 원유', desc: '국제 원유가 (달러)', val: latest.fred_wti, pval: prev.fred_wti, date: latest.dates?.fred_wti ?? latest.reference_date },
-    { key: 'cpi', label: '한국 소비자물가', desc: '전년동월대비 (%)', val: latest.cpi_total, pval: prev.cpi_total, date: latest.dates?.cpi_total ?? latest.reference_date },
-    { key: 'fed', label: '미 10년 국채', desc: '미국 10년물 금리 (%)', val: latest.fred_treasury_10y, pval: prev.fred_treasury_10y, date: latest.dates?.fred_treasury_10y ?? latest.reference_date },
+    { key: 'ai_gpr', label: '글로벌 위기 지수', desc: '지정학적 위기 지수', val: latest.ai_gpr_index, pval: prev.ai_gpr_index, date: latest.dates?.ai_gpr_index ?? latest.reference_date, max: 300 },
+    { key: 'krw_usd', label: '원/달러 환율', desc: '거시 경제 환율', val: latest.krw_usd_rate, pval: prev.krw_usd_rate, date: latest.dates?.krw_usd_rate ?? latest.reference_date, max: 2000 },
+    { key: 'wti', label: 'WTI 원유', desc: '국제 원유가 (달러)', val: latest.fred_wti, pval: prev.fred_wti, date: latest.dates?.fred_wti ?? latest.reference_date, max: 150 },
+    { key: 'cpi', label: '한국 소비자물가', desc: '전년동월대비 (%)', val: latest.cpi_total, pval: prev.cpi_total, date: latest.dates?.cpi_total ?? latest.reference_date, max: 10 },
+    { key: 'fed', label: '미 10년 국채', desc: '미국 10년물 금리 (%)', val: latest.fred_treasury_10y, pval: prev.fred_treasury_10y, date: latest.dates?.fred_treasury_10y ?? latest.reference_date, max: 8 },
   ];
 
   return (
@@ -183,6 +209,7 @@ export default function DashboardScreen() {
                 value={c.val} 
                 change={(c.val ?? 0) - (c.pval ?? 0)} 
                 date={c.date}
+                maxValue={c.max}
               />
             ))}
           </ScrollView>
@@ -194,13 +221,24 @@ export default function DashboardScreen() {
         style={styles.body}
         contentContainerStyle={styles.bodyContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={refetch}
+            tintColor={COLORS.headerBg}
+            colors={[COLORS.headerBg]}
+          />
+        }
       >
         {loading && <ActivityIndicator color={COLORS.headerBg} style={{ marginBottom: 12 }} />}
+
 
         {/* 카테고리별 가격 영향 */}
         <Text style={styles.sectionLabel}>카테고리별 가격 영향</Text>
         <View style={styles.card}>
-          {chains.map((item, i) => (
+          {chains.length === 0 && !loading ? (
+            <Text style={styles.emptyText}>데이터가 없습니다.</Text>
+          ) : chains.map((item, i) => (
             <CategoryRow
               key={item.category + i}
               item={item}
@@ -212,13 +250,30 @@ export default function DashboardScreen() {
         {/* 최신 뉴스 */}
         <Text style={[styles.sectionLabel, { marginTop: 16 }]}>최신 뉴스</Text>
         <View style={styles.card}>
-          {news.map((item, i) => (
-            <NewsRow key={item.id} item={item} isLast={i === news.length - 1} />
+          {news.length === 0 && !loading ? (
+            <Text style={styles.emptyText}>뉴스가 없습니다.</Text>
+          ) : news.map((item, i) => (
+            <NewsRow 
+              key={item.id} 
+              item={item} 
+              isLast={i === news.length - 1} 
+              onPress={setSelected}
+            />
           ))}
         </View>
 
         <View style={{ height: 16 }} />
       </ScrollView>
+
+      {/* 뉴스 상세 보기 연동 */}
+      {selected && (
+        <NewsDetailView 
+          item={selected} 
+          onClose={() => setSelected(null)} 
+          topInset={insets.top}
+          customBackText="대시보드"
+        />
+      )}
     </View>
   );
 }
@@ -259,9 +314,13 @@ const styles = StyleSheet.create({
     borderRadius: 2,
     marginVertical: 4,
   },
-  riskBarFill: { width: '60%', height: 3, backgroundColor: 'rgba(255,255,255,0.4)', borderRadius: 2 },
+  riskBarFill: { height: 3, backgroundColor: 'rgba(255,255,255,0.4)', borderRadius: 2 },
   riskChange:  { fontSize: 10 },
   riskDate: { position: 'absolute', right: 10, bottom: 8, fontSize: 9, color: 'rgba(255,255,255,0.55)' },
+  errorBox: { backgroundColor: '#FEF2F2', borderRadius: 12, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: '#FECACA' },
+  errorText: { fontSize: 13, fontWeight: '700', color: '#991B1B', marginBottom: 4 },
+  errorSub: { fontSize: 11, color: '#B91C1C' },
+  emptyText: { padding: 14, fontSize: 13, color: COLORS.textMuted, textAlign: 'center' },
 
   // Body
   body:        { flex: 1 },
@@ -302,9 +361,11 @@ const styles = StyleSheet.create({
 
   // News row
   newsRow:     { paddingVertical: 11, paddingHorizontal: 14 },
-  newsRowTop:  { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 3 },
-  newsTitle:   { flex: 1, fontSize: 12, fontWeight: '700', color: COLORS.textPrimary, marginRight: 8 },
-  newsSummaryEn: { fontSize: 11, color: COLORS.textMuted, marginBottom: 6, marginLeft: 15 },
+  newsRowTop:  { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 4, gap: 6 },
+  newsTitle:   { flex: 1, fontSize: 13, fontWeight: '700', color: COLORS.textPrimary, lineHeight: 18 },
+  newsRowInfo: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+  newsDateText: { fontSize: 10, color: COLORS.textLight, fontWeight: '500', marginLeft: 13 },
+  newsSummaryEn: { fontSize: 11, color: COLORS.textMuted, marginBottom: 8, marginLeft: 15 },
   tagRow:      { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginLeft: 15 },
   tag:         { borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2 },
   tagText:     { fontSize: 10, fontWeight: '600' },

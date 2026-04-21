@@ -1,8 +1,6 @@
 """DB fetch helpers for validation backtest (read-only)."""
 from __future__ import annotations
 
-import psycopg2.extras
-
 from .mapping import _ALLOWED_COLUMNS, _ALLOWED_TABLES, _DAILY_TABLES
 
 

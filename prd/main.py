@@ -115,7 +115,7 @@ async def _process_one(news: dict, repo, allowed_categories: list[dict]) -> None
     news_id = news["id"]
 
     try:
-        repo.mark_as_processing(news_id)
+        await asyncio.to_thread(repo.mark_as_processing, news_id)
 
         graph_news = dict(news)
         graph_news["allowed_categories"] = allowed_categories
@@ -127,24 +127,25 @@ async def _process_one(news: dict, repo, allowed_categories: list[dict]) -> None
         _print_trace(trace)
         timing = _llm_timing(trace)
         if skip:
-            repo.mark_as_skipped(news_id)
+            await asyncio.to_thread(repo.mark_as_skipped, news_id)
             _log(f"skipped news_id={news_id} title={title_preview!r} {timing}")
         else:
             _log(f"LLM result for news_id={news_id}")
             _safe_print_json(result)
-            repo.save_analysis_result(news_id, result)
-            repo.mark_as_processed(news_id)
+            await asyncio.to_thread(repo.save_analysis_result, news_id, result)
+            await asyncio.to_thread(repo.mark_as_processed, news_id)
             _log(f"processed news_id={news_id} title={title_preview!r} {timing}")
     except Exception as error:
         try:
-            repo.rollback()
+            await asyncio.to_thread(repo.rollback)
         except Exception:
             pass
         try:
-            repo.mark_as_failed(news_id, str(error))
+            await asyncio.to_thread(repo.mark_as_failed, news_id, str(error))
         except Exception as mark_error:
             try:
-                repo.rollback()
+                await asyncio.to_thread(repo.rollback)
+
             except Exception:
                 pass
             _log(
@@ -173,10 +174,10 @@ async def main() -> None:
     _log(f"DB: {backend}")
 
     try:
-        allowed_categories = repo.fetch_active_cost_categories()
+        allowed_categories = await asyncio.to_thread(repo.fetch_active_cost_categories)
         _log(f"Allowed categories: {[c['code'] for c in allowed_categories]}")
 
-        pending_count = repo.count_pending_news()
+        pending_count = await asyncio.to_thread(repo.count_pending_news)
         progress_total = min(pending_count, max_batch)
         if progress_total < pending_count:
             _log(f"Pending queue: {pending_count} (this run: {progress_total} via PRD_MAX_BATCH)")
@@ -204,7 +205,7 @@ async def main() -> None:
         while total_processed < max_batch:
             remaining = max_batch - total_processed
             batch_limit = min(chunk_size, remaining)
-            pending_news = repo.fetch_pending_news(limit=batch_limit)
+            pending_news = await asyncio.to_thread(repo.fetch_pending_news, limit=batch_limit)
 
             if not pending_news:
                 if total_processed == 0:
