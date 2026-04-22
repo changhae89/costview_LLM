@@ -14,22 +14,10 @@ Use dedicated tools instead of shell equivalents:
 | Search content | `Grep` | `grep`, `rg` via Bash |
 | Run commands / tests | `Bash` | — |
 
-## Git Workflow
+## Shared Rules
 
-변경 작업 완료 시 반드시 아래 순서로 진행한다:
-
-1. **이슈 등록** — `gh issue create` (제목 + 작업 내용)
-2. **브랜치 생성** — `feature/<issue번호>-<설명>`
-3. **커밋** — `feat/fix: 설명 (#이슈번호)`
-4. **PR → dev 머지** — `gh pr create --base dev` → `gh pr merge`
-5. **PR → main 머지** — `gh pr create --base main --head dev` → `gh pr merge`
-6. **이슈 코멘트** — 변경 내용 정리 후 `gh issue comment`
-7. **이슈 close** — `gh issue close`
-
-## Response Style
-
-- **Length**: 300자 이내로 간결하게 답변한다.
-- **Format**: 수치 비교는 표, 흐름 설명은 도형/다이어그램, 시각 요소를 적극 활용한다.
+- Git workflow, response style, stack rules, and test policy are defined in `AGENTS.md`.
+- When guidance conflicts, follow `AGENTS.md` as the single project source of truth.
 
 ## Behavior Constraints
 
@@ -43,8 +31,5 @@ Use dedicated tools instead of shell equivalents:
 
 ## Verification (run after non-trivial changes)
 
-- **Backend**: `cd backend && pytest`
-- **Expo app**: `cd frontendapp/costview && npm test`
-- **costview_LLM**: `cd costview_LLM && pnpm test`
-
-Explain why you cannot run them (e.g. missing secrets) if that is the case.
+- Use the canonical verification entrypoints in `AGENTS.md`.
+- If verification cannot run (e.g. missing secrets), explain why.

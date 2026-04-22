@@ -140,10 +140,9 @@ Agents should **run the relevant commands above** (or explain why they cannot, e
 1. **이슈 등록** — `gh issue create` (제목 + 작업 내용)
 2. **브랜치 생성** — `feature/<issue번호>-<설명>`
 3. **커밋** — `feat/fix: 설명 (#이슈번호)`
-4. **PR → dev 머지** — `gh pr create --base dev` → `gh pr merge`
-5. **PR → origin/main 머지** — `gh pr create --base main --head dev` → `gh pr merge` (반드시 origin/main 기준)
-6. **이슈 코멘트** — 변경 내용 정리 후 `gh issue comment`
-7. **이슈 close** — `gh issue close`
+4. **PR → origin/main 머지** — `gh pr create --base main` → `gh pr merge` (브랜치에서 직접 origin/main 기준으로 진행)
+5. **이슈 코멘트** — 변경 내용 정리 후 `gh issue comment`
+6. **이슈 close** — `gh issue close`
 
 권장 형식:
 
@@ -160,3 +159,4 @@ Agents should **run the relevant commands above** (or explain why they cannot, e
 
 - Prefer shared rules in this file over duplicating long instructions in tool-specific configs.
 - Keep tool-specific files lightweight and pointed at `AGENTS.md`.
+- Keep `CLAUDE.md` focused on Claude-only tool/behavior deltas; avoid restating project workflow here.
