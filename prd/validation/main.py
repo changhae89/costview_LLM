@@ -15,9 +15,10 @@ from dotenv import load_dotenv
 
 import os
 
-import psycopg2
+import os
 
-from validation.runner import print_combined_report, run_validation, run_clustered_validation, print_clustered_report
+# PostgreSQL direct access has been removed from the project.
+# from validation.runner import print_combined_report, run_validation, run_clustered_validation, print_clustered_report
 
 # prd/validation/.env 가장 우선, 그다음 prd/.env, 저장소 루트 .env
 _HERE = Path(__file__).resolve().parent
@@ -38,16 +39,11 @@ END_DATE       = "2026-01-01"   # 종료일 (미포함) — None 이면 현재�
 
 
 def _get_connection():
-    """DATABASE_URL로 직접 psycopg2 연결 (Supabase 환경 포함)."""
-    url = os.environ.get("DATABASE_URL") or os.environ.get("POSTGRES_URL")
-    if not url:
-        raise RuntimeError("DATABASE_URL 또는 POSTGRES_URL 환경변수가 없습니다.")
-    if "sslmode" not in url:
-        sep = "&" if "?" in url else "?"
-        url = f"{url}{sep}sslmode=require"
-    conn = psycopg2.connect(url)
-    conn.autocommit = False
-    return conn
+    """DATABASE_URL로 직접 psycopg2 연결 (Supabase 환경 역전)."""
+    raise NotImplementedError(
+        "Direct PostgreSQL connection via psycopg2 has been removed from this project. "
+        "Validation logic must be migrated to Supabase RPCs."
+    )
 
 
 def main() -> None:

@@ -69,19 +69,12 @@ def _default_category_dicts() -> tuple[dict, ...]:
 @lru_cache(maxsize=1)
 def get_allowed_categories() -> tuple[dict, ...]:
     try:
-        from prd.db.connection import get_connection
-        from prd.db.fetch import fetch_active_cost_categories
-        connection = get_connection()
-    except Exception:
-        return _default_category_dicts()
-
-    try:
-        categories = fetch_active_cost_categories(connection)
+        from prd.db.factory import create_repository
+        repo = create_repository()
+        categories = repo.fetch_active_cost_categories()
         return tuple(categories) if categories else _default_category_dicts()
     except Exception:
         return _default_category_dicts()
-    finally:
-        connection.close()
 
 
 def build_english_fallback_map(categories: tuple[dict, ...] | None = None) -> dict[str, str]:

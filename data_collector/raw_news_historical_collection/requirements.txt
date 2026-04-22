@@ -4,8 +4,7 @@
 # Guardian API HTTP 클라이언트
 httpx>=0.27.0
 
-# 직접 Postgres 연결 시 (DATABASE_URL / connection string)
-psycopg2-binary>=2.9.9
+# 직접 Postgres 연결 방식 지원 폐지
 
 # .env 로드
 python-dotenv>=1.0.1
