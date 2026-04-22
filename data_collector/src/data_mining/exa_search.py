@@ -160,6 +160,7 @@ _COPYRIGHT_PATTERNS = [
     re.compile(r"무단\s*전재.*금지"),                            # 무단 전재 및 재배포 금지
     re.compile(r"저작권.*재배포.*금지"),                          # 저작권자 ~ 재배포 금지
     re.compile(r"All\s*[Rr]ights?\s*[Rr]eserved"),
+    re.compile(r"기사\s*제공\s*:"),
 ]
 
 _BYLINE_PATTERNS = [
@@ -169,41 +170,25 @@ _BYLINE_PATTERNS = [
     re.compile(r"^\S+@\S+\.\S+\s*$", re.MULTILINE),           # email@domain.com (standalone)
 ]
 
-# 8) UI 노이즈 텍스트
+# 8) UI 노이즈 텍스트 (단독으로 존재하거나 버튼인 경우)
 _UI_NOISE_PATTERNS = [
-    # 반응/투표
-    re.compile(r"좋아요\s*\d*\s*개?"),
-    re.compile(r"슬퍼요\s*\d*\s*개?"),
-    re.compile(r"화나요\s*\d*\s*개?"),
-    # 댓글
-    re.compile(r"댓글을\s*입력해\s*주세요"),
-    re.compile(r"댓글\s*\d*"),
-    re.compile(r"등록"),
-    # 공유 · SNS
-    re.compile(r"공유하기"),
-    re.compile(r"네이버.*공유"),
-    re.compile(r"카카오.*공유"),
-    re.compile(r"페이스북.*공유"),
-    re.compile(r"트위터.*공유"),
-    re.compile(r"링크\s*복사"),
-    # 폰트/인쇄 UI
-    re.compile(r"글자\s*크기(\s*설정)?"),
-    re.compile(r"글씨\s*키우기"),
-    re.compile(r"인쇄\s*하기"),
-    re.compile(r"본문\s*듣기"),
-    # 기타
-    re.compile(r"기사\s*제공"),
-    re.compile(r"원문\s*보기"),
-    re.compile(r"관련\s*기사"),
-    re.compile(r"추천\s*기사"),
-    re.compile(r"많이\s*본\s*뉴스"),
-    re.compile(r"인기\s*기사"),
+    re.compile(r"^\s*(좋아요|슬퍼요|화나요|추천|공감)\s*\d*\s*$", re.MULTILINE),
+    re.compile(r"^\s*(댓글|등록|취소|확인|닫기|뒤로가기|맨위로|TOP|목록|검색)\s*$", re.MULTILINE),
+    re.compile(r"^\s*(공유하기|링크 복사|네이버|카카오|페이스북|트위터)\s*$", re.MULTILINE),
+    re.compile(r"^\s*(글자 크기|글씨 키우기|인쇄하기|본문 듣기|글자 설정)\s*$", re.MULTILINE),
 ]
 
-# 9) 홀로 남은 숫자만 있는 줄 (반응 수: 0, 12 등)
-_LONE_NUMBER_RE = re.compile(r"^\s*\d{1,4}\s*$", re.MULTILINE)
+# 9) 기사와 무관한 섹션 헤더 (### 인기기사 등)
+_BAD_SECTION_RE = re.compile(
+    r"^#+\s*(인기기사|추천기사|관련기사|가장 많이 본|핫클릭|많이 본 뉴스|실시간|포토|주요뉴스|인기 뉴스|최신뉴스).*$", 
+    re.MULTILINE | re.IGNORECASE
+)
 
-# 10) 홀로 남은 한 글자 줄 (가 가 폰트 크기 컨트롤 잔해)
+# 10) 네비게이션 잔해 (Breadcrumbs: 홈 > 뉴스 > ...)
+_NAV_BREADCRUMB_RE = re.compile(r"^.*(홈\s*[>|]|뉴스\s*[>|]|카테고리\s*[>|]|분야별\s*[>|]).*$", re.MULTILINE)
+
+# 11) 홀로 남은 숫자/글자 잔해
+_LONE_NUMBER_RE = re.compile(r"^\s*\d{1,4}\s*$", re.MULTILINE)
 _LONE_CHAR_RE = re.compile(r"^\s*[가-힣a-zA-Z]\s*$", re.MULTILINE)
 
 
@@ -453,7 +438,10 @@ def clean_content(title: str, raw_content: str) -> str:
     text = _BARE_URL_RE.sub("", text)
 
     # ### 헤딩 라인 제거
-    text = _HEADING_RE.sub("", text)
+    text = _BAD_SECTION_RE.sub("", text)
+    
+    # 네비게이션 브레드크럼 제거
+    text = _NAV_BREADCRUMB_RE.sub("", text)
 
     # 리스트 아이템 줄 제거 (- 으로 시작하는 줄)
     text = _LIST_ITEM_RE.sub("", text)
@@ -671,10 +659,10 @@ def fetch_and_store_all_news(
     Returns:
         총 적재된 행 수
     """
-    # 날짜 필터 기본값: 오늘 00:00 UTC
+    # 날짜 필터 기본값: 최근 48시간 (지나치게 좁으면 최신 기사를 놓칠 수 있음)
     if start_published_date is None:
-        today = datetime.now(timezone.utc).date().isoformat()
-        start_published_date = f"{today}T00:00:00Z"
+        two_days_ago = (datetime.now(timezone.utc) - timedelta(days=2))
+        start_published_date = two_days_ago.strftime("%Y-%m-%dT%H:%M:%SZ")
 
     queries = queries or SEMANTIC_QUERIES
     total_inserted = 0

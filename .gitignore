@@ -3,3 +3,14 @@ __pycache__/
 .env
 venv/.env
 *.zip
+
+# Data and Temp
+raw_news/
+scratch/
+out.log
+*.zip
+*.log
+
+# Phase 2 개인 작업 및 분석 로직
+data_collector/src/data_mining/reasoning_agent.py
+data_collector/src/data_mining/private/
