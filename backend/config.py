@@ -6,4 +6,5 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).parent.parent / ".env")
 
 DATABASE_URL: str = os.environ["DATABASE_URL"]
-SUPABASE_JWT_SECRET: str = os.environ["SUPABASE_JWT_SECRET"]
+SUPABASE_URL: str = os.environ["SUPABASE_URL"].rstrip("/")
+SUPABASE_ANON_KEY: str = os.environ["SUPABASE_ANON_KEY"]
