@@ -1,21 +1,21 @@
 from fastapi import FastAPI
-from api.routes import category
+from fastapi.middleware.cors import CORSMiddleware
+from api.routes import category, consumer_item
 
 app = FastAPI(title="Costview API", version="1.0.0")
 
-# Register routes
-app.include_router(category.router, prefix="/api/v1/categories")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://localhost:4173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(category.router,      prefix="/api/v1/categories")
+app.include_router(consumer_item.router, prefix="/api/v1/consumer-items")
+
 
 @app.get("/")
-async def root():
+def root():
     return {"message": "Costview Backend API Server is running."}
-
-# 향후 프론트엔드가 요청할 API 엔드포인트 뼈대 (Node.js에서 마이그레이션)
-@app.get("/api/news")
-async def get_news():
-    return {"message": "News endpoint ready to be wired"}
-
-@app.get("/api/indicators/latest")
-async def get_latest_indicators():
-    return {"message": "Indicators endpoint ready to be wired"}
-
