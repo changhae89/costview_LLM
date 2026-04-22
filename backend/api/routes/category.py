@@ -1,96 +1,76 @@
-from fastapi import APIRouter
+import json
+from fastapi import APIRouter, Depends, HTTPException
+from db import get_conn
+from auth import require_admin
+from schemas.category import CategoryCreate, CategoryUpdate
 
 router = APIRouter()
 
+
+def _row_to_dict(row, cursor) -> dict:
+    cols = [d[0] for d in cursor.description]
+    return dict(zip(cols, row))
+
+
 @router.get("/")
-async def get_categories():
-    return [
-        {
-            "code": "oil",
-            "name_ko": "기름값",
-            "name_en": "Oil",
-            "group_code": "energy",
-            "keywords": ["oil", "crude", "petroleum", "opec", "barrel"],
-            "sort_order": 1
-        },
-        {
-            "code": "fuel",
-            "name_ko": "주유비",
-            "name_en": "Fuel",
-            "group_code": "energy",
-            "keywords": ["fuel", "gasoline", "petrol", "diesel"],
-            "sort_order": 2
-        },
-        {
-            "code": "gas",
-            "name_ko": "가스비",
-            "name_en": "Gas",
-            "group_code": "energy",
-            "keywords": ["gas", "natural gas", "lng", "lpg"],
-            "sort_order": 3
-        },
-        {
-            "code": "energy",
-            "name_ko": "전기세",
-            "name_en": "Energy",
-            "group_code": "energy",
-            "keywords": ["energy", "electricity", "power", "utility"],
-            "sort_order": 4
-        },
-        {
-            "code": "food",
-            "name_ko": "장바구니",
-            "name_en": "Food",
-            "group_code": "living",
-            "keywords": ["food", "grocery", "meat", "dairy", "produce"],
-            "sort_order": 5
-        },
-        {
-            "code": "wheat",
-            "name_ko": "쌀·밀가루",
-            "name_en": "Wheat",
-            "group_code": "living",
-            "keywords": ["wheat", "grain", "corn", "rice", "soybean"],
-            "sort_order": 6
-        },
-        {
-            "code": "commodity",
-            "name_ko": "생활용품",
-            "name_en": "Commodity",
-            "group_code": "living",
-            "keywords": ["commodity", "raw material", "iron", "steel", "cotton"],
-            "sort_order": 7
-        },
-        {
-            "code": "price",
-            "name_ko": "물가",
-            "name_en": "Price",
-            "group_code": "economy",
-            "keywords": ["price", "consumer price", "cpi"],
-            "sort_order": 8
-        },
-        {
-            "code": "cost",
-            "name_ko": "생활비",
-            "name_en": "Cost",
-            "group_code": "economy",
-            "keywords": ["cost", "living cost", "expense", "wage"],
-            "sort_order": 9
-        },
-        {
-            "code": "inflation",
-            "name_ko": "물가상승",
-            "name_en": "Inflation",
-            "group_code": "economy",
-            "keywords": ["inflation", "deflation", "stagflation"],
-            "sort_order": 10
-        },
-        {
-            "code": "shipping",
-            "name_ko": "택배·운송비",
-            "name_en": "Shipping",
-            "group_code": "supply_chain",
-            "keywords": ["shipping", "freight", "logistics", "supply chain", "port"],
-            "sort_order": 11
-        }
-    ]
+def list_categories():
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM cost_categories ORDER BY sort_order")
+            cols = [d[0] for d in cur.description]
+            return [dict(zip(cols, r)) for r in cur.fetchall()]
+
+
+@router.post("/", dependencies=[Depends(require_admin)])
+def create_category(body: CategoryCreate):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO cost_categories (code, name_ko, name_en, sort_order, keywords)
+                VALUES (%s, %s, %s, %s, %s)
+                RETURNING *
+                """,
+                (body.code, body.name_ko, body.name_en, body.sort_order, json.dumps(body.keywords)),
+            )
+            conn.commit()
+            row = cur.fetchone()
+            if not row:
+                raise HTTPException(status_code=500, detail="insert_failed")
+            return {"data": _row_to_dict(row, cur)}
+
+
+@router.put("/{code}", dependencies=[Depends(require_admin)])
+def update_category(code: str, body: CategoryUpdate):
+    fields = body.model_dump(exclude_none=True)
+    if not fields:
+        raise HTTPException(status_code=400, detail="no_fields")
+
+    sets, vals = [], []
+    for k, v in fields.items():
+        sets.append(f"{k} = %s")
+        vals.append(json.dumps(v) if k == "keywords" else v)
+    vals.append(code)
+
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"UPDATE cost_categories SET {', '.join(sets)} WHERE code = %s RETURNING *",
+                vals,
+            )
+            conn.commit()
+            row = cur.fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="not_found")
+            return {"data": _row_to_dict(row, cur)}
+
+
+@router.delete("/{code}", dependencies=[Depends(require_admin)])
+def delete_category(code: str):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM cost_categories WHERE code = %s RETURNING code", (code,))
+            conn.commit()
+            if not cur.fetchone():
+                raise HTTPException(status_code=404, detail="not_found")
+            return {"data": {"code": code}}
