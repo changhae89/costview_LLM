@@ -49,7 +49,7 @@ def _fetch_today_causal(sb, briefing_date: str) -> list[dict]:
     date_from = (date.fromisoformat(briefing_date) - timedelta(days=1)).isoformat()
     rows = (
         sb.table("causal_chains")
-        .select("category, category_ko, direction, magnitude")
+        .select("category, direction, magnitude")
         .gte("created_at", date_from)
         .lte("created_at", briefing_date + "T23:59:59")
         .execute()
