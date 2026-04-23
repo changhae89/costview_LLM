@@ -1,6 +1,6 @@
 // hooks/useNews.js
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { fetchNewsList } from '../lib/supabase';
+import { fetchNewsList } from '../lib/api';
 
 export function useNews(filters = {}) {
   const { query = '', dirFilter = '', catFilter = '', sortAsc = false } = filters;

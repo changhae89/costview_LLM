@@ -1,17 +1,16 @@
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = 'https://ijhgmemuzeujpvdlywjn.supabase.co';
-const supabaseKey = 'sb_publishable_LXB0xwW4xx_r1K1S8oMLyw_-uu5ydYu';
-const supabase = createClient(supabaseUrl, supabaseKey);
+const API_BASE_URL = (process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:8020').replace(/\/$/, '');
 
 async function test() {
-  console.log("Testing Supabase connection...");
-  const { data, error } = await supabase.from('indicator_daily_logs').select('*').limit(1);
-  if (error) {
-    console.error("Error connecting to table:", error.message);
-  } else {
-    console.log("Success! Data fetched:", data);
+  console.log('Testing backend API connection...');
+  const response = await fetch(`${API_BASE_URL}/api/v1/mobile/news?limit=1`);
+  if (!response.ok) {
+    throw new Error(`${response.status} ${response.statusText}`);
   }
+  const data = await response.json();
+  console.log('Success! Data fetched:', data.data?.length ?? 0);
 }
 
-test();
+test().catch(error => {
+  console.error('Backend API test failed:', error.message);
+  process.exitCode = 1;
+});

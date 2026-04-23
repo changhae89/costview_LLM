@@ -1,6 +1,6 @@
 // hooks/useDashboard.js
 import { useCallback, useEffect, useState } from 'react';
-import { fetchCausalChains, fetchDashboardMetrics, fetchNewsList } from '../lib/supabase';
+import { fetchCausalChains, fetchDashboardMetrics, fetchNewsList } from '../lib/api';
 
 export function useDashboard() {
   const [metrics, setMetrics] = useState(null);

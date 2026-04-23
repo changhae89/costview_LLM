@@ -1,6 +1,6 @@
 // hooks/useRiskData.js
 import { useCallback, useEffect, useState } from 'react';
-import { fetchUnifiedDaily, fetchUnifiedMonthly } from '../lib/supabase';
+import { fetchUnifiedDaily, fetchUnifiedMonthly } from '../lib/api';
 
 export function useRiskData() {
   const [daily, setDaily] = useState([]);
