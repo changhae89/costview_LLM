@@ -1,62 +1,84 @@
 // hooks/useNews.js
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { fetchNewsList } from '../lib/supabase';
 
 export function useNews(filters = {}) {
   const { query = '', dirFilter = '', catFilter = '', sortAsc = false } = filters;
   const LIMIT = 50;
-  
+
   const [newsList, setNewsList] = useState([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
-  const [page, setPage] = useState(0);
 
-  const [totalCount, setTotalCount] = useState(0);
+  const pageRef = useRef(0);
+  const hasMoreRef = useRef(true);
+  const loadingMoreRef = useRef(false);
+  const loadingRef = useRef(true);
+  const refreshingRef = useRef(false);
 
-  const load = useCallback(async (isRefresh = false, loadPage = 0) => {
-    const isLoadMore = loadPage > 0;
+  const load = useCallback(async ({ isRefresh = false, isLoadMore = false } = {}) => {
+    if (isLoadMore && (!hasMoreRef.current || loadingMoreRef.current || loadingRef.current || refreshingRef.current)) return;
+
+    if (isRefresh) {
+      setRefreshing(true);
+      refreshingRef.current = true;
+    } else if (isLoadMore) {
+      setLoadingMore(true);
+      loadingMoreRef.current = true;
+    } else {
+      setLoading(true);
+      loadingRef.current = true;
+    }
+
+    const offset = isLoadMore ? (pageRef.current + 1) * LIMIT : 0;
+
     try {
-      if (isRefresh) setRefreshing(true);
-      else if (isLoadMore) setLoadingMore(true);
-      else setLoading(true);
-
-      const offset = loadPage * LIMIT;
       const { data, count } = await fetchNewsList({ offset, limit: LIMIT, query, dirFilter, catFilter, sortAsc });
+      const items = data ?? [];
 
       if (isLoadMore) {
-        setNewsList(prev => [...prev, ...(data ?? [])]);
-        setPage(loadPage);
+        pageRef.current += 1;
+        setNewsList(prev => {
+          const existingIds = new Set(prev.map(n => n.id));
+          const fresh = items.filter(n => !existingIds.has(n.id));
+          return [...prev, ...fresh];
+        });
       } else {
-        setNewsList(data ?? []);
+        pageRef.current = 0;
+        setNewsList(items);
         setTotalCount(count ?? 0);
-        setPage(0);
       }
-      
-      setHasMore((data ?? []).length === LIMIT);
+
+      hasMoreRef.current = items.length === LIMIT;
+      setHasMore(hasMoreRef.current);
     } catch (e) {
       console.warn('[useNews] error:', e);
     } finally {
       setLoading(false);
+      loadingRef.current = false;
       setRefreshing(false);
+      refreshingRef.current = false;
       setLoadingMore(false);
+      loadingMoreRef.current = false;
     }
   }, [query, dirFilter, catFilter, sortAsc]);
 
-  // When filters change, reset and load from scratch
-  useEffect(() => { 
+  useEffect(() => {
+    hasMoreRef.current = true;
     setHasMore(true);
-    load(false, 0); 
+    load({ isRefresh: false, isLoadMore: false });
   }, [load]);
 
   const loadMore = useCallback(() => {
-    if (!loadingMore && hasMore && !loading && !refreshing) {
-      load(false, page + 1);
-    }
-  }, [loadingMore, hasMore, loading, refreshing, load, page]);
+    load({ isLoadMore: true });
+  }, [load]);
 
-  const refetch = useCallback(() => load(true, 0), [load]);
+  const refetch = useCallback(() => {
+    load({ isRefresh: true });
+  }, [load]);
 
   return { newsList, totalCount, loading, refreshing, loadingMore, hasMore, loadMore, refetch };
 }

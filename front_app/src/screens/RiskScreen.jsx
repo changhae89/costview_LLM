@@ -94,7 +94,7 @@ function StatCell({ label, value, sub, subColor }) {
 export default function RiskScreen() {
   const insets = useSafeAreaInsets();
   const [category, setCategory] = useState('gpr');
-  const [tab, setTab] = useState('daily');   // 'daily' | 'monthly'
+  const [tab, setTab] = useState('monthly');   // 'daily' | 'monthly'
   const [range, setRange] = useState('20');
   const { daily, monthly, loading, refreshing, refetch } = useRiskData();
 
