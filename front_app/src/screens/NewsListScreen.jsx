@@ -67,25 +67,23 @@ function NewsCard({ item, onPress }) {
         <ReliabilityBadge reliability={item.reliability} />
       </View>
       <Text style={styles.newsCardEn} numberOfLines={1}>{item.raw_news?.title ?? ''}</Text>
-      <View style={styles.newsCardBottom}>
-        <Text style={styles.newsCardDate}>{dateStr}</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tagRow}>
-          {(item.raw_news?.increased_items ?? []).map(k => (
-            <View key={k} style={[styles.tag, { backgroundColor: COLORS.tagUpBg }]}>
-              <Text style={[styles.tagText, { color: COLORS.tagUpText }]}>▲{formatCategory(k)}</Text>
-            </View>
-          ))}
-          {(item.raw_news?.decreased_items ?? []).map(k => (
-            <View key={k} style={[styles.tag, { backgroundColor: COLORS.tagDownBg }]}>
-              <Text style={[styles.tagText, { color: COLORS.tagDownText }]}>▼{formatCategory(k)}</Text>
-            </View>
-          ))}
-          {(item.raw_news?.keyword ?? []).map(k => (
-            <View key={k} style={styles.tagGray}>
-              <Text style={styles.tagGrayText}>{k}</Text>
-            </View>
-          ))}
-        </ScrollView>
+      <Text style={styles.newsCardDate}>{dateStr}</Text>
+      <View style={styles.tagRow}>
+        {(item.raw_news?.increased_items ?? []).map(k => (
+          <View key={k} style={[styles.tag, { backgroundColor: COLORS.tagUpBg }]}>
+            <Text style={[styles.tagText, { color: COLORS.tagUpText }]}>▲{formatCategory(k)}</Text>
+          </View>
+        ))}
+        {(item.raw_news?.decreased_items ?? []).map(k => (
+          <View key={k} style={[styles.tag, { backgroundColor: COLORS.tagDownBg }]}>
+            <Text style={[styles.tagText, { color: COLORS.tagDownText }]}>▼{formatCategory(k)}</Text>
+          </View>
+        ))}
+        {(item.raw_news?.keyword ?? []).map(k => (
+          <View key={k} style={styles.tagGray}>
+            <Text style={styles.tagGrayText}>{k}</Text>
+          </View>
+        ))}
       </View>
     </Pressable>
   );
@@ -288,17 +286,13 @@ const styles = StyleSheet.create({
   newsCardTop:  { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 4 },
   newsCardTitle:{ flex: 1, fontSize: 12, fontWeight: '700', color: COLORS.textPrimary, marginRight: 8 },
   newsCardEn:   { fontSize: 11, color: COLORS.textMuted, marginBottom: 8, marginLeft: 15 },
-  newsCardBottom: { flexDirection: 'row', alignItems: 'center', marginLeft: 15, gap: 8 },
-  newsCardDate: { fontSize: 10, color: COLORS.textLight },
-  tagRow:    { flexDirection: 'row', gap: 4, alignItems: 'center' },
+  newsCardBottom: { marginLeft: 15, marginTop: 2 },
+  newsCardDate: { fontSize: 10, color: COLORS.textLight, marginBottom: 6 },
+  tagScroll:    { marginLeft: 0 },
+  tagRow:    { flexDirection: 'row', flexWrap: 'wrap', gap: 4, alignItems: 'center', marginTop: 6 },
   tag:       { borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2 },
   tagText:   { fontSize: 10, fontWeight: '600' },
   tagGray:   { backgroundColor: '#F3F4F6', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2 },
   tagGrayText: { fontSize: 10, color: COLORS.textMuted },
-  errorBox: { backgroundColor: '#FEF2F2', borderRadius: 12, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: '#FECACA' },
-  errorText: { fontSize: 13, fontWeight: '700', color: '#991B1B', marginBottom: 4 },
-  errorSub: { fontSize: 11, color: '#B91C1C' },
-  emptyText: { padding: 24, fontSize: 13, color: COLORS.textMuted, textAlign: 'center' },
-
   emptyText: { padding: 24, fontSize: 13, color: COLORS.textMuted, textAlign: 'center' },
 });
