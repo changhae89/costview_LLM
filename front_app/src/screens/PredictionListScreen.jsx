@@ -63,7 +63,7 @@ export default function PredictionListScreen() {
 
   return (
     <View style={styles.root}>
-      <StatusBar barStyle="light-content" backgroundColor={COLORS.headerBg} />
+      <StatusBar barStyle="dark-content" backgroundColor={COLORS.headerBg} />
 
       <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
         <View style={styles.headerTop}>
@@ -95,11 +95,11 @@ export default function PredictionListScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.listContent}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={refetch} tintColor={COLORS.headerBg} colors={[COLORS.headerBg]} />
+          <RefreshControl refreshing={refreshing} onRefresh={refetch} tintColor={COLORS.primary} colors={[COLORS.primary]} />
         }
       >
         <Text style={styles.listSectionLabel}>카테고리별 예측 ({filtered.length}건)</Text>
-        {loading && <ActivityIndicator color={COLORS.headerBg} style={{ marginBottom: 12, marginTop: 10 }} />}
+        {loading && <ActivityIndicator color={COLORS.primary} style={{ marginBottom: 12, marginTop: 10 }} />}
         {hasError && (
           <View style={styles.errorBox}>
             <Text style={styles.errorText}>🔌 데이터를 불러오지 못했어요.</Text>
@@ -125,10 +125,10 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 17, fontWeight: '700', color: COLORS.headerText },
   headerSub: { fontSize: 10, color: COLORS.headerAccent, marginTop: 2 },
   chipRow: { paddingHorizontal: 16, paddingBottom: 8, gap: 8 },
-  chip: { borderRadius: 20, paddingHorizontal: 12, paddingVertical: 5, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' },
+  chip: { borderRadius: 20, paddingHorizontal: 12, paddingVertical: 5, borderWidth: 1, borderColor: COLORS.border },
   chipActive: { backgroundColor: COLORS.white },
-  chipText: { fontSize: 11, color: 'rgba(255,255,255,0.65)' },
-  chipTextActive: { color: COLORS.headerBg, fontWeight: '700' },
+  chipText: { fontSize: 11, color: COLORS.textMuted },
+  chipTextActive: { color: COLORS.primary, fontWeight: '700' },
   listContent: { padding: 12 },
   listSectionLabel: { fontSize: 11, fontWeight: '600', color: COLORS.textMuted, letterSpacing: 0.5, marginBottom: 12, paddingHorizontal: 4, textTransform: 'uppercase' },
   errorBox: { backgroundColor: '#FEF2F2', borderRadius: 12, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: '#FECACA' },

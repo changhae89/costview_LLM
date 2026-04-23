@@ -13,7 +13,6 @@ export function useNews(filters = {}) {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
 
-  // ref로 페이지 관리 → stale closure / 중복 append 방지
   const pageRef = useRef(0);
   const hasMoreRef = useRef(true);
   const loadingMoreRef = useRef(false);
@@ -23,9 +22,16 @@ export function useNews(filters = {}) {
   const load = useCallback(async ({ isRefresh = false, isLoadMore = false } = {}) => {
     if (isLoadMore && (!hasMoreRef.current || loadingMoreRef.current || loadingRef.current || refreshingRef.current)) return;
 
-    if (isRefresh) { setRefreshing(true); refreshingRef.current = true; }
-    else if (isLoadMore) { setLoadingMore(true); loadingMoreRef.current = true; }
-    else { setLoading(true); loadingRef.current = true; }
+    if (isRefresh) {
+      setRefreshing(true);
+      refreshingRef.current = true;
+    } else if (isLoadMore) {
+      setLoadingMore(true);
+      loadingMoreRef.current = true;
+    } else {
+      setLoading(true);
+      loadingRef.current = true;
+    }
 
     const offset = isLoadMore ? (pageRef.current + 1) * LIMIT : 0;
 
@@ -36,7 +42,6 @@ export function useNews(filters = {}) {
       if (isLoadMore) {
         pageRef.current += 1;
         setNewsList(prev => {
-          // ID 기반 중복 제거
           const existingIds = new Set(prev.map(n => n.id));
           const fresh = items.filter(n => !existingIds.has(n.id));
           return [...prev, ...fresh];
@@ -52,18 +57,20 @@ export function useNews(filters = {}) {
     } catch (e) {
       console.warn('[useNews] error:', e);
     } finally {
-      setLoading(false); loadingRef.current = false;
-      setRefreshing(false); refreshingRef.current = false;
-      setLoadingMore(false); loadingMoreRef.current = false;
+      setLoading(false);
+      loadingRef.current = false;
+      setRefreshing(false);
+      refreshingRef.current = false;
+      setLoadingMore(false);
+      loadingMoreRef.current = false;
     }
-  }, [query, dirFilter, catFilter, sortAsc]); // page 제거 → stale closure 없음
+  }, [query, dirFilter, catFilter, sortAsc]);
 
-  // 필터 변경 시 처음부터 재로드
   useEffect(() => {
     hasMoreRef.current = true;
     setHasMore(true);
     load({ isRefresh: false, isLoadMore: false });
-  }, [query, dirFilter, catFilter, sortAsc]); // load 제거로 무한 루프 방지
+  }, [load]);
 
   const loadMore = useCallback(() => {
     load({ isLoadMore: true });
@@ -75,4 +82,3 @@ export function useNews(filters = {}) {
 
   return { newsList, totalCount, loading, refreshing, loadingMore, hasMore, loadMore, refetch };
 }
-

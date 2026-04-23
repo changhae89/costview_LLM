@@ -88,6 +88,7 @@ These are **hard expectations** for humans and agents—not optional style tips.
 - **Error handling**: Handle errors explicitly (`try/catch` in JS/TS, `try/except` in Python).
 - **Comments**: Only for non-obvious logic—do not narrate obvious code.
 - **After edits**: Run the relevant local commands under **Verification and agent harnesses → Automated test entrypoints**.
+- **No guessing — verify**: 테이블·컬럼·브랜치 상태·에러 원인·외부 데이터 갱신 여부 등은 **추정으로 단정하지 말고** 저장소 검색, DB/스키마 조회, 명령 실행, API·워크플로 로그 확인 등으로 **직접 검증**한다. 환경상 검증이 불가하면 그 한계를 밝히고, 확인에 필요한 구체적 단계(쿼리, 파일 경로, 명령)를 제시한다.
 
 ## Error handling rules
 

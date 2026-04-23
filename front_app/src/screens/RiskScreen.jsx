@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import {
   ActivityIndicator,
   Animated,
@@ -34,7 +34,7 @@ const VIEW_CATEGORIES = [
 
 const ALL_SERIES = {
   gpr: [
-    { key: 'ai_gpr_index', label: '글로벌 위기 지수', color: '#D85A30', strokeWidth: 2 },
+    { key: 'ai_gpr_index', label: '글로벌 불안지수', color: '#D85A30', strokeWidth: 2 },
     { key: 'oil_disruptions', label: '석유 차질(÷10)', color: '#EF9F27', strokeWidth: 1.5, div: 10 },
     { key: 'gpr_original', label: '기존 GPR', color: '#888780', MathWidth: 1 },
     { key: 'non_oil_gpr', label: '비석유', color: '#2E86AB', strokeWidth: 1.5 },
@@ -395,7 +395,7 @@ export default function RiskScreen() {
 
   return (
     <View style={styles.root}>
-      <StatusBar barStyle="light-content" backgroundColor={COLORS.headerBg} />
+      <StatusBar barStyle="dark-content" backgroundColor={COLORS.headerBg} />
 
       {/* 헤더 */}
       <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
@@ -441,12 +441,12 @@ export default function RiskScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={refetch}
-            tintColor={COLORS.headerBg}
-            colors={[COLORS.headerBg]}
+            tintColor={COLORS.primary}
+            colors={[COLORS.primary]}
           />
         }
       >
-        {loading && <ActivityIndicator color={COLORS.headerBg} style={{ marginBottom: 12 }} />}
+        {loading && <ActivityIndicator color={COLORS.primary} style={{ marginBottom: 12 }} />}
 
         {/* 통계 카드 */}
         {pStats && (
@@ -646,21 +646,21 @@ const styles = StyleSheet.create({
 
   // Tabs
   tabRow: { flexDirection: 'row', gap: 8, marginBottom: 10 },
-  tabBtn: { borderRadius: 20, paddingHorizontal: 16, paddingVertical: 5, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' },
+  tabBtn: { borderRadius: 20, paddingHorizontal: 16, paddingVertical: 5, borderWidth: 1, borderColor: COLORS.border },
   tabBtnActive: { backgroundColor: COLORS.white },
-  tabBtnText: { fontSize: 12, color: 'rgba(255,255,255,0.65)' },
-  tabBtnTextActive: { color: COLORS.headerBg, fontWeight: '700' },
+  tabBtnText: { fontSize: 12, color: COLORS.textMuted },
+  tabBtnTextActive: { color: COLORS.primary, fontWeight: '700' },
 
   // 일간/월간 + 전체/10일/20일/필터 통합 한 줄 콘트롤 바
   controlRow: { flexDirection: 'row', gap: 8, paddingBottom: 4, alignItems: 'center' },
-  controlDivider: { width: 1, height: 16, backgroundColor: 'rgba(255,255,255,0.25)', marginHorizontal: 2 },
+  controlDivider: { width: 1, height: 16, backgroundColor: COLORS.border, marginHorizontal: 2 },
 
   // Range chips
   rangeRow: { flexDirection: 'row', gap: 8 },
-  rangeChip: { borderRadius: 14, paddingHorizontal: 12, paddingVertical: 4, borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' },
-  rangeChipActive: { borderColor: 'rgba(255,255,255,0.5)', backgroundColor: 'rgba(255,255,255,0.1)' },
-  rangeChipText: { fontSize: 11, color: 'rgba(255,255,255,0.5)' },
-  rangeChipTextActive: { color: 'rgba(255,255,255,1)' },
+  rangeChip: { borderRadius: 14, paddingHorizontal: 12, paddingVertical: 4, borderWidth: 1, borderColor: COLORS.border },
+  rangeChipActive: { borderColor: COLORS.primary, backgroundColor: COLORS.surface },
+  rangeChipText: { fontSize: 11, color: COLORS.textMuted },
+  rangeChipTextActive: { color: COLORS.primary },
 
   // Body
   body: { padding: 14 },
@@ -741,14 +741,14 @@ const styles = StyleSheet.create({
   modalBtnRow: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8, marginTop: 10 },
   modalBtnCancel: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8 },
   modalBtnTextCancel: { fontSize: 14, color: COLORS.textMuted, fontWeight: '600' },
-  modalBtnApply: { backgroundColor: COLORS.headerBg, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8 },
+  modalBtnApply: { backgroundColor: COLORS.primary, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8 },
   modalBtnTextApply: { fontSize: 14, color: COLORS.white, fontWeight: '700' },
 
   // Fullscreen Modal
   fsRoot: { flex: 1, backgroundColor: COLORS.white },
-  fsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: COLORS.headerBg, paddingHorizontal: 16, paddingBottom: 16 },
+  fsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: COLORS.primary, paddingHorizontal: 16, paddingBottom: 16 },
   fsTitle: { fontSize: 18, fontWeight: '700', color: COLORS.white },
-  fsCloseBtn: { padding: 8, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 8 },
+  fsCloseBtn: { padding: 8, backgroundColor: 'rgba(0,0,0,0.1)', borderRadius: 8 },
   fsCloseText: { fontSize: 13, fontWeight: '700', color: COLORS.white },
   fsBody: { flex: 1, padding: 16, paddingTop: 20 },
 

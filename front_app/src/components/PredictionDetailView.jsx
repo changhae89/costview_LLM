@@ -55,7 +55,7 @@ export default function PredictionDetailView({ item, onClose, topInset }) {
 
   return (
     <Animated.View style={[styles.root, { transform: [{ translateX: slideAnim }] }]}>
-      <StatusBar barStyle="light-content" backgroundColor={COLORS.headerBg} />
+      <StatusBar barStyle="dark-content" backgroundColor={COLORS.headerBg} />
 
       <View style={[styles.header, { paddingTop: topInset + 10 }]}>
         <TouchableOpacity onPress={handleClose} style={styles.backBtn} hitSlop={15}>
@@ -64,7 +64,7 @@ export default function PredictionDetailView({ item, onClose, topInset }) {
         <View style={styles.titleRow}>
           <View style={{ flex: 1 }}>
             <Text style={styles.catName}>{catName}</Text>
-            <Text style={[styles.range, { color: COLORS.white }]}>{rangeText}</Text>
+            <Text style={[styles.range, { color: COLORS.textPrimary }]}>{rangeText}</Text>
           </View>
           <View style={styles.headerRight}>
             <View style={[styles.magBadge, { backgroundColor: magBadge.bg }]}>
@@ -196,7 +196,7 @@ const styles = StyleSheet.create({
   root: { ...StyleSheet.absoluteFillObject, backgroundColor: COLORS.screenBg, zIndex: 100 },
   header: { backgroundColor: COLORS.headerBg, paddingHorizontal: 16, paddingBottom: 20 },
   backBtn: { marginBottom: 16 },
-  backText: { fontSize: 13, color: 'rgba(255,255,255,0.7)', fontWeight: '600' },
+  backText: { fontSize: 13, color: COLORS.textPrimary, fontWeight: '600' },
   titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
   catName: { fontSize: 16, color: COLORS.headerAccent, fontWeight: '600', marginBottom: 2 },
   range: { fontSize: 32, fontWeight: '900' },
@@ -227,9 +227,9 @@ const styles = StyleSheet.create({
   impactLabel: { fontSize: 11, fontWeight: '700', color: '#1E40AF', marginBottom: 4 },
   impactValue: { fontSize: 22, fontWeight: '900', color: '#1E3A8A' },
   impactSub: { fontSize: 10, color: '#93C5FD' },
-  newsCard: { backgroundColor: COLORS.white, borderRadius: 16, padding: 16, marginBottom: 12, borderLeftWidth: 4, borderLeftColor: COLORS.headerBg },
+  newsCard: { backgroundColor: COLORS.white, borderRadius: 16, padding: 16, marginBottom: 12, borderLeftWidth: 4, borderLeftColor: COLORS.primary },
   newsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  newsSource: { fontSize: 11, fontWeight: '700', color: COLORS.headerBg },
+  newsSource: { fontSize: 11, fontWeight: '700', color: COLORS.primary },
   relBadge: { backgroundColor: '#ECFDF5', borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2 },
   relBadgeText: { fontSize: 10, fontWeight: '700', color: '#065F46' },
   newsTitle: { fontSize: 15, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 12, lineHeight: 22 },
@@ -249,5 +249,5 @@ const styles = StyleSheet.create({
   bufferLabel: { fontSize: 10, fontWeight: '800', color: '#166534', marginBottom: 4 },
   bufferText: { fontSize: 12, color: '#14532D', lineHeight: 18 },
   linkBtn: { alignSelf: 'flex-end', paddingVertical: 4, paddingHorizontal: 8, marginTop: 4 },
-  linkText: { fontSize: 12, color: COLORS.headerBg, fontWeight: '700' },
+  linkText: { fontSize: 12, color: COLORS.primary, fontWeight: '700' },
 });

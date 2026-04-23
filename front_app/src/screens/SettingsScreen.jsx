@@ -89,7 +89,7 @@ export default function SettingsScreen({
       await onLogin({ email: normalizedEmail, password });
       setEmail(normalizedEmail);
       setStatusMessage('로그인 성공');
-    } catch (error) {
+    } catch {
       Alert.alert('오류', '로그인 처리 중 문제가 발생했습니다.');
       setStatusMessage('로그인 실패');
     } finally {
@@ -113,14 +113,14 @@ export default function SettingsScreen({
 
   return (
     <View style={styles.root}>
-      <StatusBar barStyle="light-content" backgroundColor={COLORS.headerBg} />
+      <StatusBar barStyle="dark-content" backgroundColor={COLORS.headerBg} />
       <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
         <Text style={styles.headerTitle}>{loginOnlyMode ? '로그인' : '설정'}</Text>
       </View>
       <View style={styles.body}>
         {isAuthLoading ? (
           <View style={styles.loadingBox}>
-            <ActivityIndicator size="small" color={COLORS.headerBg} />
+            <ActivityIndicator size="small" color={COLORS.primary} />
             <Text style={styles.loadingText}>로그인 상태를 불러오는 중...</Text>
           </View>
         ) : null}
@@ -217,8 +217,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#EFF6FF',
-    borderColor: '#BFDBFE',
+    backgroundColor: COLORS.surface,
+    borderColor: COLORS.primaryAccent,
     borderWidth: 1,
     borderRadius: 10,
     paddingVertical: 10,
@@ -262,7 +262,7 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
   },
   loginButton: {
-    backgroundColor: COLORS.headerBg,
+    backgroundColor: COLORS.primary,
     borderRadius: 8,
     paddingVertical: 14,
     alignItems: 'center',
@@ -292,7 +292,7 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: COLORS.headerBg,
+    backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 12,
@@ -345,6 +345,6 @@ const styles = StyleSheet.create({
   statusMessage: {
     marginBottom: 6,
     fontSize: 12,
-    color: COLORS.headerBg,
+    color: COLORS.primary,
   },
 });

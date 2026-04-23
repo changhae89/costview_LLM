@@ -30,7 +30,7 @@ import NewsDetailView from '../components/NewsDetailView';
 // ── 리스크 카드 ────────────────────────────────────────────────
 function RiskCard({ itemKey, label, desc, value, change, date, maxValue, onPressDetail }) {
   const changeNum = Number(change);
-  const changeColor = changeNum > 0 ? '#FF8A7A' : '#6EE7B7';
+  const changeColor = changeNum > 0 ? COLORS.up : COLORS.down;
   const changeText = changeNum > 0
     ? `▲+${changeNum.toFixed(1)}`
     : changeNum < 0
@@ -44,10 +44,10 @@ function RiskCard({ itemKey, label, desc, value, change, date, maxValue, onPress
   // 비율에 따라 게이지 바 색상 결정
   // 0~24%: 파란색, 25~49%: 노란색, 50~74%: 주황색, 75~100%: 빨간색
   const gaugeColor =
-    fillPct < 25 ? '#60A5FA' :   // 파란색
-    fillPct < 50 ? '#FBBF24' :   // 노란색
-    fillPct < 75 ? '#F97316' :   // 주황색
-                   '#EF4444';    // 빨간색
+    fillPct < 25 ? '#60A5FA' :
+    fillPct < 50 ? '#FBBF24' :
+    fillPct < 75 ? '#F97316' :
+                   '#EF4444';
 
   return (
     <View style={styles.riskCard}>
@@ -59,7 +59,7 @@ function RiskCard({ itemKey, label, desc, value, change, date, maxValue, onPress
       >
         <Text style={styles.infoIcon}>ⓘ</Text>
       </TouchableOpacity>
-      {desc && <Text style={{fontSize: 8, color: 'rgba(255,255,255,0.4)', marginBottom: 4}}>{desc}</Text>}
+      {desc && <Text style={{fontSize: 8, color: COLORS.textLight, marginBottom: 4}}>{desc}</Text>}
       <Text style={styles.riskValue} numberOfLines={1}>{value !== null && value !== undefined && value !== '' ? formatNumber(value) : '-'}</Text>
       <View style={styles.riskBar}>
         <View style={[styles.riskBarFill, { width: `${fillPct}%`, backgroundColor: gaugeColor }]} />
@@ -234,7 +234,7 @@ export default function DashboardScreen() {
   const prev   = metrics?.prev ?? {};
 
   const CARDS = [
-    { key: 'ai_gpr', label: '글로벌 위기 지수', desc: '지정학적 위기 지수', val: latest.ai_gpr_index, pval: prev.ai_gpr_index, date: latest.dates?.ai_gpr_index ?? latest.reference_date, max: 300 },
+    { key: 'ai_gpr', label: '글로벌 불안지수', desc: '글로벌 불안지수', val: latest.ai_gpr_index, pval: prev.ai_gpr_index, date: latest.dates?.ai_gpr_index ?? latest.reference_date, max: 300 },
     { key: 'krw_usd', label: '원/달러 환율', desc: '거시 경제 환율', val: latest.krw_usd_rate, pval: prev.krw_usd_rate, date: latest.dates?.krw_usd_rate ?? latest.reference_date, max: 2000 },
     { key: 'wti', label: 'WTI 원유', desc: '국제 원유가 (달러)', val: latest.fred_wti, pval: prev.fred_wti, date: latest.dates?.fred_wti ?? latest.reference_date, max: 150 },
     { key: 'cpi', label: '한국 소비자물가', desc: '총지수 (2020=100)', val: latest.cpi_total, pval: prev.cpi_total, date: latest.dates?.cpi_total ?? latest.reference_date, max: 150 },
@@ -243,7 +243,7 @@ export default function DashboardScreen() {
 
   return (
     <View style={styles.root}>
-      <StatusBar barStyle="light-content" backgroundColor={COLORS.headerBg} />
+      <StatusBar barStyle="dark-content" backgroundColor={COLORS.headerBg} />
 
       {/* ── 헤더 ── */}
       <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
@@ -283,12 +283,12 @@ export default function DashboardScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={refetch}
-            tintColor={COLORS.headerBg}
-            colors={[COLORS.headerBg]}
+            tintColor={COLORS.primary}
+            colors={[COLORS.primary]}
           />
         }
       >
-        {loading && <ActivityIndicator color={COLORS.headerBg} style={{ marginBottom: 12 }} />}
+        {loading && <ActivityIndicator color={COLORS.primary} style={{ marginBottom: 12 }} />}
 
 
         {/* 카테고리별 가격 영향 */}
@@ -368,7 +368,7 @@ export default function DashboardScreen() {
               </View>
               {selectedRisk?.key === 'ai_gpr' && (
                 <Text style={styles.sheetDisclaimer}>
-                  본 글로벌 위기 지수는 지정학적 위험 지수(GPR Index) 방법론을 참고하여 본 서비스의 AI가 실시간 뉴스 기반으로 분석한 결과입니다.
+                  본 글로벌 불안지수는 지정학적 위험 지수(GPR Index) 방법론을 참고하여 본 서비스의 AI가 실시간 뉴스 기반으로 분석한 결과입니다.
                 </Text>
               )}
             </Pressable>
@@ -402,22 +402,22 @@ const styles = StyleSheet.create({
   riskRow:   { flexDirection: 'row', gap: 8, paddingHorizontal: 16 },
   riskCard: {
     width: 120, // 가로 스크롤 시 카드의 고정 너비
-    backgroundColor: 'rgba(255,255,255,0.10)',
+    backgroundColor: COLORS.white,
     borderRadius: 12,
     paddingVertical: 10,
     paddingHorizontal: 12,
   },
-  riskLabel:   { fontSize: 10, fontWeight: '700', color: 'rgba(255,255,255,0.9)', marginBottom: 2 },
+  riskLabel:   { fontSize: 10, fontWeight: '700', color: COLORS.textMuted, marginBottom: 2 },
   riskValue:   { fontSize: 18, fontWeight: '700', color: COLORS.headerText },
   riskBar: {
     height: 3,
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    backgroundColor: COLORS.border,
     borderRadius: 2,
     marginVertical: 4,
   },
-  riskBarFill: { height: 3, backgroundColor: 'rgba(255,255,255,0.4)', borderRadius: 2 },
+  riskBarFill: { height: 3, backgroundColor: COLORS.primaryAccent, borderRadius: 2 },
   riskChange:  { fontSize: 10 },
-  riskDate: { position: 'absolute', right: 10, bottom: 8, fontSize: 9, color: 'rgba(255,255,255,0.55)' },
+  riskDate: { position: 'absolute', right: 10, bottom: 8, fontSize: 9, color: COLORS.textLight },
   errorBox: { backgroundColor: '#FEF2F2', borderRadius: 12, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: '#FECACA' },
   errorText: { fontSize: 13, fontWeight: '700', color: '#991B1B', marginBottom: 4 },
   errorSub: { fontSize: 11, color: '#B91C1C' },
@@ -475,7 +475,7 @@ const styles = StyleSheet.create({
 
   // Info Button
   infoBtn: { position: 'absolute', top: 10, right: 10, opacity: 0.6 },
-  infoIcon: { fontSize: 12, color: COLORS.white },
+  infoIcon: { fontSize: 12, color: COLORS.textMuted },
 
   // Bottom Sheet Modal
   modalOverlay: {

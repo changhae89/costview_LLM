@@ -1,5 +1,5 @@
 // screens/NewsListScreen.jsx — SCR-002 뉴스 목록 & 상세
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Animated,
   BackHandler,
@@ -132,12 +132,12 @@ export default function NewsListScreen() {
 
   const renderFooter = () => {
     if (!loadingMore) return <View style={{ height: 20 }} />;
-    return <ActivityIndicator color={COLORS.headerBg} style={{ marginVertical: 20 }} />;
+    return <ActivityIndicator color={COLORS.primary} style={{ marginVertical: 20 }} />;
   };
 
   return (
     <View style={styles.root}>
-      <StatusBar barStyle="light-content" backgroundColor={COLORS.headerBg} />
+      <StatusBar barStyle="dark-content" backgroundColor={COLORS.headerBg} />
 
       {/* 헤더 */}
       <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
@@ -147,7 +147,7 @@ export default function NewsListScreen() {
             <Text style={styles.headerSub}>실시간 뉴스 분석</Text>
           </View>
           <TouchableOpacity onPress={() => setShowSearch(!showSearch)} style={{ padding: 5 }}>
-            <Text style={{ fontSize: 18, color: COLORS.white }}>🔍</Text>
+            <Text style={{ fontSize: 18, color: COLORS.primary }}>🔍</Text>
           </TouchableOpacity>
         </View>
 
@@ -196,7 +196,7 @@ export default function NewsListScreen() {
       </View>
 
       {loading && newsList.length === 0 ? (
-        <ActivityIndicator color={COLORS.headerBg} style={{ marginBottom: 12, marginTop: 20 }} />
+        <ActivityIndicator color={COLORS.primary} style={{ marginBottom: 12, marginTop: 20 }} />
       ) : !loading && newsList.length === 0 ? (
         <Text style={styles.emptyText}>조건에 맞는 뉴스가 없습니다.</Text>
       ) : (
@@ -213,8 +213,8 @@ export default function NewsListScreen() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={refetch}
-              tintColor={COLORS.headerBg}
-              colors={[COLORS.headerBg]}
+              tintColor={COLORS.primary}
+              colors={[COLORS.primary]}
             />
           }
         />
@@ -246,7 +246,7 @@ const styles = StyleSheet.create({
   // Search
   searchBox: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: '#F9FAFB',
     borderRadius: 10, marginHorizontal: 16, marginBottom: 10,
     paddingHorizontal: 10, paddingVertical: 7,
   },
@@ -257,11 +257,11 @@ const styles = StyleSheet.create({
   chipRow: { paddingHorizontal: 16, paddingBottom: 8, gap: 8 },
   chip: {
     borderRadius: 20, paddingHorizontal: 12, paddingVertical: 5,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)',
+    borderWidth: 1, borderColor: COLORS.border,
   },
   chipActive:     { backgroundColor: COLORS.white },
-  chipText:       { fontSize: 11, color: 'rgba(255,255,255,0.65)' },
-  chipTextActive: { color: COLORS.headerBg, fontWeight: '700' },
+  chipText:       { fontSize: 11, color: COLORS.textMuted },
+  chipTextActive: { color: COLORS.primary, fontWeight: '700' },
 
   // List bar
   listBar: {
@@ -294,5 +294,8 @@ const styles = StyleSheet.create({
   tagText:   { fontSize: 10, fontWeight: '600' },
   tagGray:   { backgroundColor: '#F3F4F6', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2 },
   tagGrayText: { fontSize: 10, color: COLORS.textMuted },
+  errorBox: { backgroundColor: '#FEF2F2', borderRadius: 12, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: '#FECACA' },
+  errorText: { fontSize: 13, fontWeight: '700', color: '#991B1B', marginBottom: 4 },
+  errorSub: { fontSize: 11, color: '#B91C1C' },
   emptyText: { padding: 24, fontSize: 13, color: COLORS.textMuted, textAlign: 'center' },
 });
