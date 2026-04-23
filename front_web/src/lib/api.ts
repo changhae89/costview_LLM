@@ -34,6 +34,7 @@ async function apiFetch(path: string, options: RequestInit = {}): Promise<Respon
 async function parseJson(res: Response) {
   const json = await res.json()
   if (!res.ok) throw new Error(json?.detail ?? json?.error ?? `HTTP ${res.status}`)
+  if (json && typeof json === 'object' && 'data' in json && 'total' in json) return json
   return json?.data ?? json
 }
 
