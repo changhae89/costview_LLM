@@ -1,7 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
-import { TrendingUp, TrendingDown, Minus, AlertTriangle, Lightbulb, RefreshCw } from 'lucide-react'
+import { TrendingUp, TrendingDown, Minus, AlertTriangle, Lightbulb } from 'lucide-react'
 import { briefingApi } from '../lib/api'
 import { formatDate } from '../lib/helpers'
+import { Loading, EmptyState } from '../components/ui/Loading'
 
 type BriefingItem = {
   category_ko: string
@@ -37,7 +38,7 @@ const DIRECTION_CONFIG = {
 function RiskBadge({ risk }: { risk: 'low' | 'medium' | 'high' }) {
   const cfg = RISK_CONFIG[risk] ?? RISK_CONFIG.medium
   return (
-    <span className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-semibold ${cfg.bg} ${cfg.text} ${cfg.border}`}>
+    <span className={`inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-semibold ${cfg.bg} ${cfg.text} ${cfg.border}`}>
       <AlertTriangle size={11} />
       물가 부담 {cfg.label}
     </span>
@@ -48,7 +49,7 @@ function DirectionItem({ item }: { item: BriefingItem }) {
   const cfg = DIRECTION_CONFIG[item.direction] ?? DIRECTION_CONFIG.neutral
   const { Icon } = cfg
   return (
-    <div className={`flex items-start gap-3 rounded-xl p-4 ${cfg.bg}`}>
+    <div className={`flex items-start gap-3 rounded-lg border border-gray-100 p-4 ${cfg.bg}`}>
       <div className={`mt-0.5 flex-shrink-0 ${cfg.color}`}>
         <Icon size={18} />
       </div>
@@ -66,13 +67,10 @@ function DirectionItem({ item }: { item: BriefingItem }) {
 
 function EmptyBriefing() {
   return (
-    <div className="flex flex-col items-center justify-center py-20 text-center">
-      <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-surface">
-        <RefreshCw size={24} className="text-primary" />
-      </div>
-      <p className="text-base font-semibold text-gray-600">오늘 브리핑이 아직 준비되지 않았어요</p>
-      <p className="mt-2 text-sm text-gray-400">매일 오전 브리핑이 자동으로 생성됩니다.</p>
-    </div>
+    <EmptyState
+      message="오늘 브리핑이 아직 준비되지 않았어요"
+      sub="매일 오전 브리핑이 자동으로 생성됩니다."
+    />
   )
 }
 
@@ -85,58 +83,66 @@ export function BriefingPage() {
   const briefing = data as Briefing | null
 
   return (
-    <div className="max-w-2xl mx-auto space-y-5">
-      <div className="flex items-end justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900">오늘의 물가 브리핑</h1>
-          <p className="mt-1 text-xs text-gray-500">AI가 오늘 뉴스를 분석해 장바구니에 미칠 영향을 알려드립니다.</p>
-        </div>
-        {briefing && (
-          <span className="font-mono text-xs text-gray-400">{briefing.briefing_date}</span>
-        )}
-      </div>
-
-      {isLoading ? (
-        <div className="py-20 flex items-center justify-center gap-2 text-sm text-gray-400">
-          <div className="spinner" /> 브리핑 불러오는 중...
-        </div>
-      ) : !briefing ? (
-        <EmptyBriefing />
-      ) : (
-        <>
-          <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-6 space-y-3 animate-fade-in-up">
-            <div className="flex items-center justify-between">
-              <RiskBadge risk={briefing.overall_risk} />
-              <span className="text-xs text-gray-400">분석 뉴스 {briefing.source_count}건</span>
+    <div className="min-h-screen bg-surface">
+      <div className="mx-auto max-w-5xl px-4 py-7 sm:px-6 lg:px-8">
+        <div className="space-y-4">
+          <div className="flex items-end justify-between gap-3 rounded-lg border border-gray-100 bg-white px-5 py-4">
+            <div className="space-y-1">
+              <h1 className="text-xl font-bold text-gray-900">오늘의 물가 브리핑</h1>
+              <p className="text-xs text-gray-500">AI가 오늘 뉴스를 분석해 장바구니에 미칠 영향을 알려드립니다.</p>
             </div>
-            <h2 className="text-lg font-bold text-gray-900 leading-snug">{briefing.headline}</h2>
-            <p className="text-sm text-gray-600 leading-relaxed">{briefing.overview}</p>
+            {briefing && (
+              <span className="whitespace-nowrap rounded-md bg-gray-50 px-2.5 py-1 font-mono text-xs text-gray-500">
+                {briefing.briefing_date}
+              </span>
+            )}
           </div>
 
-          {briefing.items.length > 0 && (
-            <div className="space-y-2 animate-fade-in-up [animation-delay:80ms]">
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-1">품목별 영향</p>
-              {briefing.items.map((item, i) => (
-                <DirectionItem key={`${item.category_ko}-${i}`} item={item} />
-              ))}
-            </div>
-          )}
-
-          {briefing.consumer_tip && (
-            <div className="flex items-start gap-3 rounded-xl bg-surface border border-primary-accent p-4 animate-fade-in-up [animation-delay:160ms]">
-              <Lightbulb size={16} className="mt-0.5 flex-shrink-0 text-primary" />
-              <div>
-                <p className="text-xs font-semibold text-primary mb-1">오늘의 생활 팁</p>
-                <p className="text-sm text-gray-700">{briefing.consumer_tip}</p>
+          {isLoading ? (
+            <Loading className="py-16" />
+          ) : !briefing ? (
+            <EmptyBriefing />
+          ) : (
+            <>
+              <div className="rounded-lg bg-white border border-gray-100 shadow-sm p-5 space-y-3.5 animate-fade-in-up">
+                <div className="flex items-center justify-between">
+                  <RiskBadge risk={briefing.overall_risk} />
+                  <span className="text-xs text-gray-400">분석 뉴스 {briefing.source_count}건</span>
+                </div>
+                <h2 className="text-lg font-bold text-gray-900 leading-snug">{briefing.headline}</h2>
+                <p className="text-sm text-gray-600 leading-relaxed">{briefing.overview}</p>
               </div>
-            </div>
-          )}
 
-          <p className="text-center text-[11px] text-gray-300 animate-fade-in-up [animation-delay:240ms]">
-            {formatDate(briefing.created_at)} 기준 · AI 분석 결과이며 실제 가격과 다를 수 있습니다
-          </p>
-        </>
-      )}
+              {briefing.items.length > 0 && (
+                <div className="rounded-lg bg-white border border-gray-100 shadow-sm p-5 animate-fade-in-up [animation-delay:80ms]">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">품목별 영향</p>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    {briefing.items.map((item, i) => (
+                      <DirectionItem key={`${item.category_ko}-${i}`} item={item} />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {briefing.consumer_tip && (
+                <div className="rounded-lg bg-white border border-gray-100 shadow-sm p-5 animate-fade-in-up [animation-delay:160ms]">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">오늘의 생활 팁</p>
+                  <div className="flex items-start gap-3 rounded-lg bg-surface border border-primary-accent p-3.5">
+                    <Lightbulb size={16} className="mt-0.5 flex-shrink-0 text-primary" />
+                    <div>
+                      <p className="text-sm text-gray-700">{briefing.consumer_tip}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <p className="text-center text-[11px] text-gray-400 animate-fade-in-up [animation-delay:240ms]">
+                {formatDate(briefing.created_at)} 기준 · AI 분석 결과이며 실제 가격과 다를 수 있습니다
+              </p>
+            </>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

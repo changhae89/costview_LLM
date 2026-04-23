@@ -12,13 +12,13 @@ import { BriefingPage } from '../pages/BriefingPage'
 
 export const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
-  { path: '/briefing', element: <BriefingPage /> },
   {
     element: <RequireAuth />,
     children: [{
       element: <AppLayout />,
       children: [
         { path: '/',           element: <DashboardPage /> },
+        { path: '/briefing',   element: <BriefingPage /> },
         { path: '/news',       element: <NewsPage /> },
         { path: '/causal',     element: <CausalPage /> },
         { path: '/indicators', element: <IndicatorPage /> },
