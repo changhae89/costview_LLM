@@ -15,10 +15,24 @@ def _row_to_dict(row, cursor) -> dict:
 def list_consumer_items(show_deleted: bool = False):
     with get_conn() as conn:
         with conn.cursor() as cur:
+            columns = """
+                id,
+                category_en AS category_code,
+                keyword_kr AS name_ko,
+                keyword_en AS name_en,
+                '-' AS unit,
+                NULL::double precision AS typical_monthly_spend,
+                NULL::double precision AS weight,
+                category_kr AS description,
+                is_deleted,
+                deleted_at,
+                created_at,
+                updated_at
+            """
             if show_deleted:
-                cur.execute("SELECT * FROM consumer_items ORDER BY created_at DESC")
+                cur.execute(f"SELECT {columns} FROM consumer_items ORDER BY created_at DESC")
             else:
-                cur.execute("SELECT * FROM consumer_items WHERE is_deleted = false ORDER BY created_at DESC")
+                cur.execute(f"SELECT {columns} FROM consumer_items WHERE is_deleted = false ORDER BY created_at DESC")
             cols = [d[0] for d in cur.description]
             return [dict(zip(cols, r)) for r in cur.fetchall()]
 
