@@ -5,7 +5,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as SplashScreen from 'expo-splash-screen';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { supabase } from './lib/supabase';
 
 import DashboardScreen from './screens/DashboardScreen';
 import NewsListScreen from './screens/NewsListScreen';
@@ -17,7 +17,15 @@ import { COLORS } from './constants/colors';
 SplashScreen.preventAutoHideAsync();
 
 const Tab = createBottomTabNavigator();
-const DUMMY_AUTH_KEY = 'costview:dummy-auth';
+
+function userToProfile(user) {
+  return {
+    email: user.email,
+    name: user.email.split('@')[0] || 'guest',
+    loginType: user.app_metadata?.role === 'admin' ? 'Admin Account' : 'Viewer Account',
+    lastLoginAt: Date.now(),
+  };
+}
 
 // ── 탭 아이콘 (SVG 없이 텍스트 이모지 + 인디케이터) ──────────
 function TabIcon({ label, focused }) {
@@ -57,19 +65,17 @@ export default function App() {
   const toastTimerRef = useRef(null);
 
   useEffect(() => {
+    let subscription;
+
     async function prepare() {
       try {
-        // 로그인 상태 확인 + 최소 0.8수 대기 (로딩이 빨리 끝나면 즉시 넘어감)
-        const [raw] = await Promise.all([
-          AsyncStorage.getItem(DUMMY_AUTH_KEY),
+        const [{ data }] = await Promise.all([
+          supabase.auth.getSession(),
           new Promise(resolve => setTimeout(resolve, 800)),
         ]);
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          if (parsed?.email) {
-            setProfile(parsed);
-            setIsLoggedIn(true);
-          }
+        if (data.session?.user) {
+          setProfile(userToProfile(data.session.user));
+          setIsLoggedIn(true);
         }
       } catch (e) {
         console.warn(e);
@@ -78,7 +84,21 @@ export default function App() {
         setAppIsReady(true);
       }
     }
+
     prepare();
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        setProfile(userToProfile(session.user));
+        setIsLoggedIn(true);
+      } else {
+        setProfile(null);
+        setIsLoggedIn(false);
+      }
+    });
+    subscription = authListener.subscription;
+
+    return () => subscription?.unsubscribe();
   }, []);
 
   useEffect(() => {
@@ -136,22 +156,17 @@ export default function App() {
     }, 1700);
   };
 
-  const handleLogin = async ({ email }) => {
-    const nextProfile = {
-      email,
-      name: email.split('@')[0] || 'guest',
-      loginType: 'Admin Account',
-      lastLoginAt: Date.now(),
-    };
-
-    await AsyncStorage.setItem(DUMMY_AUTH_KEY, JSON.stringify(nextProfile));
+  const handleLogin = async ({ email, password }) => {
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw error;
+    const nextProfile = userToProfile(data.user);
     setProfile(nextProfile);
     setIsLoggedIn(true);
     showWelcomeToast(nextProfile.name);
   };
 
   const handleLogout = async () => {
-    await AsyncStorage.removeItem(DUMMY_AUTH_KEY);
+    await supabase.auth.signOut();
     setProfile(null);
     setIsLoggedIn(false);
   };

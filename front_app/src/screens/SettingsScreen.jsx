@@ -84,13 +84,13 @@ export default function SettingsScreen({
 
     setIsSubmitting(true);
     setStatusMessage('로그인 확인 중...');
-    await new Promise((resolve) => setTimeout(resolve, 900));
     try {
       await onLogin({ email: normalizedEmail, password });
       setEmail(normalizedEmail);
       setStatusMessage('로그인 성공');
-    } catch {
-      Alert.alert('오류', '로그인 처리 중 문제가 발생했습니다.');
+    } catch (err) {
+      console.error('[login error]', err);
+      Alert.alert('로그인 실패', err?.message ?? '알 수 없는 오류가 발생했습니다.');
       setStatusMessage('로그인 실패');
     } finally {
       setIsSubmitting(false);
@@ -164,7 +164,6 @@ export default function SettingsScreen({
               {isSubmitting ? <ActivityIndicator size="small" color={COLORS.white} /> : null}
               <Text style={styles.loginButtonText}>{isSubmitting ? '로그인 중...' : '로그인'}</Text>
             </TouchableOpacity>
-            <Text style={styles.hintText}>이메일 예시: cost@view.ai / 1234</Text>
           </Animated.View>
         ) : (
           <Animated.View
