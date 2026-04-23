@@ -21,13 +21,13 @@ Use dedicated tools instead of shell equivalents:
 
 ## Behavior Constraints
 
-- **Scope**: change only what the task requires — no unrelated refactors, no drive-by formatting, no new docs unless asked.
+Claude Code-specific rules (project-wide rules are in `AGENTS.md`):
+
 - **No speculation**: no extra error handling, helpers, or abstractions for hypothetical future use.
 - **No backwards-compat hacks**: no `_unused` renames, re-exported types, or `// removed` comments.
-- **Responses**: concise — no trailing summary paragraphs after making an edit.
+- **Responses**: no trailing summary paragraphs after making an edit (response style is in `AGENTS.md`).
 - **Git**: only commit when explicitly asked; create new commits (never amend without being asked); never use `--no-verify`; never use interactive flags (`-i`).
 - **Destructive actions**: confirm before `reset --hard`, `push --force`, deleting files/branches, or anything hard to reverse.
-- **Security**: never introduce command injection, XSS, SQL injection, or OWASP top-10 vulnerabilities; never hardcode secrets.
 
 ## Verification (run after non-trivial changes)
 

@@ -4,89 +4,87 @@ This repository uses `AGENTS.md` as the shared source of truth for project-level
 
 ## Tech Stack
 
-- **Mobile app**: Expo (React Native), React 19, TypeScript/JavaScript with ESM
-- **Backend**: Python 3, FastAPI, Uvicorn, SQLAlchemy, PostgreSQL (`DATABASE_URL`)
-- **Auth / data (client)**: `@supabase/supabase-js` in the Expo app where Supabase is used
-- **Data jobs**: Python scripts under `history_loader/`, `history_naver/`, `prd/`, `proposal/` (HTTP clients, DB writes, optional Supabase helpers in `common/`)
-- **Infra**: Backend deploy target includes Render (`backend/render.yaml`); mobile is Expo (dev client / EAS / store builds as configured)
-- **Automation**: GitHub Actions under `.github/workflows/` (e.g. `prd.yml`, `proposal.yml`)
+- **Mobile app**: Expo (React Native), React, JavaScript/ESM — `front_app/`
+- **Web app**: Vite + React, TypeScript — `front_web/`
+- **Backend**: Python 3, FastAPI, Uvicorn, psycopg (raw), PostgreSQL (`DATABASE_URL`) — `backend/`
+- **Auth / data (client)**: `@supabase/supabase-js` in `front_app/src/lib/supabase.js`
+- **Data jobs**: Python scripts under `prd/` (LLM pipelines, DB writes)
+- **Root package**: Vitest-based LLM utilities at the repo root (`vitest.config.ts`, `package.json`)
+- **Automation**: GitHub Actions under `.github/workflows/` (`deploy.yml`, `data-sync-all.yml`)
 
 ## Project Structure
 
-- `frontendapp/costview/`: Expo app (main UI); API wrapper at `src/lib/api.ts`
-- `backend/`: FastAPI service (`app/main.py`, routers under `app/api/routes/`, schemas under `app/schemas/`, SQLAlchemy models under `app/models/`)
-- `history_loader/`, `history_naver/`: standalone Python loaders (news/history → DB or Supabase-backed flows per script)
-- `prd/`, `proposal/`: Python tooling and pipelines related to PRD/proposal workflows; LLM eval fixtures live under **`prd/evals/`**; DB backtest validation package lives under **`prd/validation/`** (run `cd prd && python -m validation.main`)
-- `costview_LLM/`: separate Node package (pnpm, Vitest) for LLM-related utilities; not the main mobile app
-- `common/`: shared Python modules (e.g. `supabase_client.py`) imported by loaders
-- `.github/workflows/`: CI and scheduled or manual automation
-
-There is **no** `supabase/functions/` tree in this repo today; if Edge Functions are added later, document them here.
+- `front_app/`: Expo (React Native) app; API/Supabase helpers at `src/lib/`
+- `front_web/`: Vite web app (`src/main.tsx`, routers under `src/pages/`, components under `src/components/`)
+- `backend/`: FastAPI service (`main.py`, routers under `api/routes/`, schemas under `schemas/`, DB at `db.py`, config at `config.py`)
+- `prd/`: Python LLM pipeline (`main.py`); tests under `prd/tests/`; DB backtest validation under `prd/validation/` (run `cd prd && python -m validation.main`)
+- `data_collector/`: data mining and reasoning scripts (`src/data_mining/`, `src/reasoning/`); own backend entry at `data_collector/backend/main.py`
+- `infra/`: infrastructure configuration
+- `.github/workflows/`: CI and scheduled automation (`deploy.yml`, `data-sync-all.yml`)
 
 ## Mobile app rules (Expo)
 
-Applies to `frontendapp/costview/`.
+Applies to `front_app/`.
 
 - Use functional components and hooks only.
 - Use `fetch` for HTTP calls to the FastAPI backend.
-- Read the API base URL from `EXPO_PUBLIC_API_URL` (see `src/lib/api.ts`); default local backend port in code is `8020` when unset.
-- Keep HTTP/API access logic in `src/lib/api.ts` (extend this module rather than scattering `fetch` URLs).
-- Use `react-native-chart-kit` (and related SVG stack) for charts in this app—not `lightweight-charts` (web-only).
+- Keep API/Supabase access logic in `src/lib/` (extend existing modules rather than scattering fetch calls).
+- Use `react-native-chart-kit` (and related SVG stack) for charts—not `lightweight-charts` (web-only).
 - Prefer ESM imports; avoid CommonJS `require()` in app source.
 - **Expo** public env vars must use the `EXPO_PUBLIC_` prefix (not `VITE_`).
+
+## Web app rules
+
+Applies to `front_web/`.
+
+- Use functional components and hooks only.
+- Use `VITE_` prefix for public env vars.
+- Keep API logic centralized under `src/lib/` or `src/app/`.
 
 ## Backend rules
 
 Applies to `backend/`.
 
 - Use FastAPI with type hints on endpoints.
-- Use Pydantic models for request/response schemas under `app/schemas/` as in existing routes.
-- Use **SQLAlchemy** and the existing session/engine pattern (`app/core/database.py`, `get_db`) for PostgreSQL access. Do not introduce ad hoc raw SQL in route handlers unless the user explicitly asks or it matches existing migration/script patterns.
-- Load configuration via `app/core/config.py` / environment variables (e.g. `python-dotenv` where already used).
-- Keep **CORS** appropriate for real callers (Expo dev, production origins); avoid widening `allow_origins` without cause (`app/main.py`).
-- Organize HTTP routers by domain under `app/api/routes/` (e.g. `news.py`, `dashboard.py`).
+- Use Pydantic models for request/response schemas under `schemas/`.
+- Use **psycopg** via `db.py` (`get_conn()`) for PostgreSQL access. Do not introduce raw SQL outside of existing patterns.
+- Auth is handled via Supabase JWT validation (`auth.py`); do not bypass it.
+- Load configuration via `config.py` / environment variables.
+- Keep **CORS** appropriate for real callers (Expo dev, production origins); avoid widening `allow_origins` without cause (`main.py`).
+- Organize HTTP routers by domain under `api/routes/` (e.g. `category.py`, `consumer_item.py`).
 - Return structured JSON consistently.
 
 ## Supabase and database
 
-- **Mobile**: use `@supabase/supabase-js` following existing app patterns for auth/storage when touching Supabase from the client.
-- **Python loaders**: when a script already uses `common/supabase_client.py` or Supabase APIs, stay consistent with that file and surrounding modules.
-- **Backend API**: uses SQLAlchemy + Postgres; it does not currently use the Supabase Python client—do not assume it unless the project is migrated.
-- Prefer **RLS** and Supabase Auth policies on Supabase-managed tables when applicable (product/security requirement).
+- **Mobile**: use `@supabase/supabase-js` following existing patterns in `front_app/src/lib/supabase.js`.
+- **Backend API**: uses psycopg + Postgres directly for data; uses Supabase for auth JWT validation (`auth.py`).
+- Prefer **RLS** and Supabase Auth policies on Supabase-managed tables when applicable.
 
-## Data loader and PRD script rules
+## PRD script rules
 
-Applies to `history_loader/`, `history_naver/`, `prd/`, `proposal/`, and similar Python entrypoints.
+Applies to `prd/`.
 
 - Prefer clear CLI entrypoints and `python-dotenv` / env vars for secrets.
 - Use **UTC** for stored/processed timestamps unless a script documents a different convention.
-- Keep scripts runnable locally and compatible with how they are invoked from GitHub Actions (if wired).
-- Reuse `common/` for shared Supabase or config helpers instead of duplicating connection logic.
+- Keep scripts runnable locally and compatible with how they are invoked from GitHub Actions.
 
 ## GitHub Actions rules
 
-- Workflows live in `.github/workflows/` (e.g. `ci.yml`, `prd.yml`, `proposal.yml`).
+- Workflows live in `.github/workflows/` (`deploy.yml`, `data-sync-all.yml`).
 - Never hardcode secrets; use repository or environment secrets.
 - When adding jobs, avoid breaking existing workflow names and triggers unless intentionally migrating them.
 
-## Coding constraints (when writing or changing code)
+## Coding constraints
 
 These are **hard expectations** for humans and agents—not optional style tips.
 
 - **Scope**: Change only what the task requires. No unrelated refactors, no drive-by formatting sweeps, no new docs unless asked.
-- **Stack fit**: Follow the Mobile / Backend / loader sections above (imports, env var prefixes, API layout, SQLAlchemy patterns).
+- **Stack fit**: Follow the Mobile / Web / Backend sections above (imports, env var prefixes, API layout, psycopg patterns).
 - **Secrets**: Never commit API keys, tokens, or production connection strings. Use env vars and repository secrets in CI.
 - **Size and clarity**: Prefer small, reviewable diffs; keep functions focused; use names like `is_loading`, `has_error`.
+- **Error handling**: Handle errors explicitly (`try/catch` in JS/TS, `try/except` in Python).
 - **Comments**: Only for non-obvious logic—do not narrate obvious code.
-- **After edits**: Run the relevant local commands under **Verification and agent harnesses → Automated test entrypoints**; for branches opened as PRs, the **PR/push test harness** (`ci.yml`) should be green when secrets are configured.
-
-## General coding rules
-
-- Never hardcode API keys, URLs, or secrets.
-- Prefer descriptive names such as `is_loading`, `has_error`, and `is_active`.
-- Keep functions focused and reasonably small.
-- Handle errors explicitly (`try/catch` in JS/TS, `try/except` in Python).
-- Add comments only for non-obvious logic.
+- **After edits**: Run the relevant local commands under **Verification and agent harnesses → Automated test entrypoints**.
 
 ## Error handling rules
 
@@ -99,38 +97,32 @@ These are **hard expectations** for humans and agents—not optional style tips.
 
 ## Verification and agent harnesses
 
-This section is what makes `AGENTS.md` useful for **harness-style** work: clear, repeatable checks—not only style rules.
-
 ### Automated test entrypoints (run after non-trivial changes)
 
-- **Backend** (`backend/`): from `backend/`, run `pytest` (config: `pytest.ini`, tests under `backend/tests/`). Use a valid `DATABASE_URL` or existing test fixtures/conftest patterns when tests touch the DB.
-- **Expo app** (`frontendapp/costview/`): run `npm test` (Jest / `jest-expo` as configured in `package.json`).
-- **costview_LLM/**: run `pnpm test` or `npm test` per that package’s `package.json` (Vitest).
+- **Backend** (`backend/`): no dedicated test suite; verify endpoints manually or with an HTTP client.
+- **LLM pipeline** (`prd/`): from `prd/`, run `pytest tests/`. Use a valid `DATABASE_URL` when tests touch the DB.
+- **Expo app** (`front_app/`): no test script; run `npm run lint` to check for lint errors.
+- **Web app** (`front_web/`): no test script; run `npm run build` to verify compilation.
+- **Root LLM utilities**: run `npm test` (Vitest) at the repo root.
+- **data_collector**: run `python test.py` from `data_collector/`; no formal test suite.
 
 Agents should **run the relevant commands above** (or explain why they cannot, e.g. missing secrets) before treating a change as complete.
 
 ### PR/push test harness (GitHub Actions)
 
-- **Workflow**: `.github/workflows/ci.yml` runs on every **`push`** and **`pull_request`**.
-- **Always runs** (no extra secrets): **`expo-app`** — `npm ci`, `npm run lint`, `npm test -- --ci` in `frontendapp/costview/`; **`costview-llm`** — `npm ci`, `npm test` (Vitest) in `costview_LLM/`.
-- **Backend** (`backend-tests`): runs **`pytest`** with **`DATABASE_URL`** from **repository secrets**. Configure the `DATABASE_URL` secret in the GitHub repo (same value style as local Postgres/Supabase URI). If the secret is missing, the backend job fails with a clear message.
-- **Fork PRs**: the backend job is **skipped** when the PR comes from a fork (`head` repo ≠ base repo), because GitHub does not expose secrets to those workflows. Same-repo PRs and all **`push`** events on this repository still run backend tests when the secret is set.
+- **Workflows**: `.github/workflows/deploy.yml`, `data-sync-all.yml`.
+- Never hardcode secrets; all credentials must come from repository or environment secrets (e.g. `DATABASE_URL`, `GEMINI_API_KEY`).
 
-### CI as operational harnesses
-
-- `.github/workflows/prd.yml` and `proposal.yml` are **scheduled/production harnesses**: they execute `prd/main.py` and `proposal/main.py` with repository secrets. They validate “pipeline still runs in CI,” not unit-test coverage.
-- When changing those scripts or their dependencies, keep workflow paths and `requirements.txt` locations in sync and preserve `workflow_dispatch` for manual reruns.
-
-### LLM / LangChain and non-deterministic logic
+### LLM / non-deterministic logic
 
 - Prefer **deterministic unit tests** for parsing, schema validation, and tool I/O boundaries where outputs can be fixed or mocked.
-- **Canonical eval harness data**: put golden inputs, expected outputs (when stable), and rubric notes under **`prd/evals/`** (see `prd/evals/README.md`). Co-locate ad hoc fixtures next to the code only when they are tightly coupled to a single module; otherwise prefer `prd/evals/`.
-- Do not commit API keys; CI already expects secrets such as `GEMINI_API_KEY`, `DATABASE_URL`, etc.
+- Tests live under `prd/tests/`.
+- Do not commit API keys; CI expects secrets such as `GEMINI_API_KEY`, `DATABASE_URL`, etc.
 
 ### Definition of done (agent-facing)
 
 - Happy path **and** failure path considered (see [Error handling rules](#error-handling-rules)).
-- Relevant **pytest / Jest / Vitest** suite passes locally; same-repo PRs / pushes should pass **`ci.yml`** (Expo + costview_LLM always; backend when `DATABASE_URL` secret exists).
+- Relevant test suite passes locally.
 - No new hardcoded secrets or production URLs.
 
 ## Git Workflow
@@ -140,7 +132,7 @@ Agents should **run the relevant commands above** (or explain why they cannot, e
 1. **이슈 등록** — `gh issue create` (제목 + 작업 내용)
 2. **브랜치 생성** — `feature/<issue번호>-<설명>`
 3. **커밋** — `feat/fix: 설명 (#이슈번호)`
-4. **PR → origin/main 머지** — `gh pr create --base main` → `gh pr merge` (브랜치에서 직접 origin/main 기준으로 진행)
+4. **PR → origin/main 머지** — `gh pr create --base main` → `gh pr merge`
 5. **이슈 코멘트** — 변경 내용 정리 후 `gh issue comment`
 6. **이슈 close** — `gh issue close`
 
@@ -152,8 +144,8 @@ Agents should **run the relevant commands above** (or explain why they cannot, e
 
 ## Response Style
 
-- **Length**: 답변은 300자 이내로 간결하게 작성한다.
-- **Format**: 수치 비교는 표, 흐름 설명은 도형/다이어그램 등 시각 요소를 적극 활용한다.
+- **Length**: 텍스트 설명은 300자 이내로 간결하게 작성한다. 표·도형·다이어그램은 글자 수 제한 없이 적극 활용한다.
+- **Format**: 수치 비교는 표, 흐름 설명은 도형/다이어그램 등 시각 요소를 우선한다.
 
 ## Working agreement
 
