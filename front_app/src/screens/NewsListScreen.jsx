@@ -17,6 +17,7 @@ import {
   View,
   ActivityIndicator,
   RefreshControl,
+  FlatList,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import DirectionDot from '../components/DirectionDot';
@@ -96,7 +97,6 @@ function NewsCard({ item, onPress }) {
 // ── 목록 메인 ─────────────────────────────────────────────────
 export default function NewsListScreen() {
   const insets = useSafeAreaInsets();
-  const { newsList, loading, refreshing, refetch } = useNews();
   const [selected, setSelected] = useState(null);
   const [query, setQuery] = useState('');
   const [dirFilter, setDirFilter] = useState('');
@@ -104,6 +104,10 @@ export default function NewsListScreen() {
   const [sortAsc, setSortAsc] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
 
+  // useNews 훅에 필터 값들을 넘겨서 서버사이드 필터링 및 페이징 수행
+  const { newsList, totalCount, loading, refreshing, loadingMore, loadMore, refetch } = useNews({
+    query, dirFilter, catFilter, sortAsc
+  });
 
   // 안드로이드 하드웨어 뒤로가기 대응
   useEffect(() => {
@@ -118,24 +122,6 @@ export default function NewsListScreen() {
     return () => subscription.remove();
   }, [selected]);
 
-  const filtered = newsList.filter(item => {
-    const chain = item.causal_chains?.[0];
-    if (dirFilter && chain?.direction !== dirFilter) return false;
-    if (catFilter === '__high__' && item.reliability < 0.8) return false;
-    else if (catFilter && catFilter !== '__high__' && chain?.category !== catFilter) return false;
-    if (query) {
-      const q = query.toLowerCase();
-      const inTitle = item.summary?.toLowerCase().includes(q);
-      const inKeyword = (item.raw_news?.keyword ?? []).some(k => k.toLowerCase().includes(q));
-      if (!inTitle && !inKeyword) return false;
-    }
-    return true;
-  }).sort((a, b) => {
-    const da = new Date(a.raw_news?.origin_published_at ?? a.created_at ?? 0);
-    const db = new Date(b.raw_news?.origin_published_at ?? b.created_at ?? 0);
-    return sortAsc ? da - db : db - da;
-  });
-
   if (selected) {
     return (
       <NewsDetailView
@@ -145,6 +131,11 @@ export default function NewsListScreen() {
       />
     );
   }
+
+  const renderFooter = () => {
+    if (!loadingMore) return <View style={{ height: 20 }} />;
+    return <ActivityIndicator color={COLORS.headerBg} style={{ marginVertical: 20 }} />;
+  };
 
   return (
     <View style={styles.root}>
@@ -198,35 +189,38 @@ export default function NewsListScreen() {
         </ScrollView>
       </View>
 
-      {/* 리스트 바 */}
+      {/* 리스크 바 */}
       <View style={styles.listBar}>
-        <Text style={styles.listCount}>{filtered.length}건</Text>
+        <Text style={styles.listCount}>총 {totalCount}건</Text>
         <TouchableOpacity onPress={() => setSortAsc(!sortAsc)}>
           <Text style={styles.sortBtn}>{sortAsc ? '오래된순 ↕' : '최신순 ↕'}</Text>
         </TouchableOpacity>
       </View>
 
-      <ScrollView 
-        showsVerticalScrollIndicator={false} 
-        contentContainerStyle={styles.listContent}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={refetch}
-            tintColor={COLORS.headerBg}
-            colors={[COLORS.headerBg]}
-          />
-        }
-      >
-        {loading && <ActivityIndicator color={COLORS.headerBg} style={{ marginBottom: 12, marginTop: 20 }} />}
-        {!loading && filtered.length === 0 && (
-          <Text style={styles.emptyText}>조건에 맞는 뉴스가 없습니다.</Text>
-        )}
-        {filtered.map(item => (
-          <NewsCard key={item.id} item={item} onPress={setSelected} />
-        ))}
-        <View style={{ height: 20 }} />
-      </ScrollView>
+      {loading && newsList.length === 0 ? (
+        <ActivityIndicator color={COLORS.headerBg} style={{ marginBottom: 12, marginTop: 20 }} />
+      ) : !loading && newsList.length === 0 ? (
+        <Text style={styles.emptyText}>조건에 맞는 뉴스가 없습니다.</Text>
+      ) : (
+        <FlatList
+          data={newsList}
+          keyExtractor={(item, index) => item.id ? item.id.toString() : index.toString()}
+          renderItem={({ item }) => <NewsCard item={item} onPress={setSelected} />}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          onEndReached={loadMore}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={renderFooter}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={refetch}
+              tintColor={COLORS.headerBg}
+              colors={[COLORS.headerBg]}
+            />
+          }
+        />
+      )}
 
       {/* 뉴스 상세 화면 공용 컴포넌트 */}
       {selected && (

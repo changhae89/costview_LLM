@@ -145,18 +145,41 @@ function getNthNonNullRow(rows, key, nth = 0) {
   return null;
 }
 
-export async function fetchNewsList() {
-  const { data, error } = await supabase
+export async function fetchNewsList({ offset = 0, limit = 50, query = '', dirFilter = '', catFilter = '', sortAsc = false } = {}) {
+  const filterCausal = dirFilter !== '' || (catFilter !== '' && catFilter !== '__high__');
+  const causalSelect = filterCausal ? 'causal_chains!inner(category, direction, magnitude)' : 'causal_chains(category, direction, magnitude)';
+  
+  let dbQuery = supabase
     .from('news_analyses')
     .select(`
       id, summary, reliability, created_at,
-      raw_news:raw_news_id(id, title, keyword, increased_items, decreased_items, is_deleted, origin_published_at, news_url),
-      causal_chains(category, direction, magnitude)
-    `)
+      raw_news:raw_news_id!inner(id, title, keyword, increased_items, decreased_items, is_deleted, origin_published_at, news_url),
+      ${causalSelect}
+    `, { count: 'exact' })
     .gte('reliability', 0.3)
-    .order('created_at', { ascending: false });
+    .eq('raw_news.is_deleted', false)
+    .order('created_at', { ascending: sortAsc })
+    .range(offset, offset + limit - 1);
+
+  if (query) {
+    dbQuery = dbQuery.ilike('summary', `%${query}%`);
+  }
+
+  if (dirFilter) {
+    dbQuery = dbQuery.eq('causal_chains.direction', dirFilter);
+  }
+
+  if (catFilter) {
+    if (catFilter === '__high__') {
+      dbQuery = dbQuery.gte('reliability', 0.8);
+    } else {
+      dbQuery = dbQuery.eq('causal_chains.category', catFilter);
+    }
+  }
+
+  const { data, count, error } = await dbQuery;
   if (error) throw error;
-  return (data ?? []).filter(n => !n.raw_news?.is_deleted);
+  return { data: data ?? [], count: count ?? 0 };
 }
 
 export async function fetchUnifiedDaily() {
