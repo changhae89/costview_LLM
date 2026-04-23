@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, CartesianGrid } from 'recharts'
-import { fetchKpiLatest, fetchPipelineStats, fetchGprTrend, fetchCausalSummary, fetchRecentAnalyses } from '../lib/supabase'
+import { dashboardApi } from '../lib/api'
 import { formatCategory, DIRECTION_MAP } from '../constants/category'
 import { formatDate, formatNumber } from '../lib/helpers'
 import { ReliabilityBar } from '../components/ui/Badge'
@@ -43,28 +43,28 @@ const PIPE_COLORS: Record<string, string> = {
 }
 
 export function DashboardPage() {
-  const { data: kpi }      = useQuery({ queryKey: ['kpi'],      queryFn: fetchKpiLatest })
-  const { data: pipe }     = useQuery({ queryKey: ['pipeline'], queryFn: fetchPipelineStats })
-  const { data: gprTrend } = useQuery({ queryKey: ['gprTrend'], queryFn: () => fetchGprTrend(30) })
-  const { data: causal }   = useQuery({ queryKey: ['causalSum'],queryFn: fetchCausalSummary })
-  const { data: news }     = useQuery({ queryKey: ['recentNews'],queryFn: () => fetchRecentAnalyses(5) })
+  const { data: kpi }      = useQuery({ queryKey: ['kpi'],      queryFn: dashboardApi.kpi })
+  const { data: pipe }     = useQuery({ queryKey: ['pipeline'], queryFn: dashboardApi.pipelineStats })
+  const { data: gprTrend } = useQuery({ queryKey: ['gprTrend'], queryFn: () => dashboardApi.gprTrend(30) })
+  const { data: causal }   = useQuery({ queryKey: ['causalSum'],queryFn: dashboardApi.causalSummary })
+  const { data: news }     = useQuery({ queryKey: ['recentNews'],queryFn: () => dashboardApi.recentAnalyses(5) })
 
   const g0 = kpi?.gpr[0]; const g1 = kpi?.gpr[1]
   const e0 = kpi?.ecos[0]; const e1 = kpi?.ecos[1]
   const f0 = kpi?.fred[0]; const f1 = kpi?.fred[1]
   const k0 = kpi?.kosis[0]; const k1 = kpi?.kosis[1]
 
-  const pipeData = pipe ? Object.entries(pipe).map(([name, value]) => ({ name, value })) : []
+  const pipeData = pipe ? Object.entries(pipe as Record<string, number>).map(([name, value]) => ({ name, value })) : []
 
   const causalGrouped = Object.values(
-    (causal ?? []).reduce((acc: Record<string, { category: string; up: number; down: number; neutral: number }>, c) => {
+    ((causal ?? []) as Record<string, unknown>[]).reduce((acc: Record<string, { category: string; up: number; down: number; neutral: number }>, c) => {
       const cat = c.category as string
       if (!acc[cat]) acc[cat] = { category: cat, up: 0, down: 0, neutral: 0 }
       const dir = (c.direction as string) ?? 'neutral'
       if (dir in acc[cat]) acc[cat][dir as 'up' | 'down' | 'neutral']++
       return acc
     }, {})
-  ).sort((a, b) => (b.up + b.down) - (a.up + a.down)).slice(0, 8)
+  ).sort((a: { up: number; down: number }, b: { up: number; down: number }) => (b.up + b.down) - (a.up + a.down)).slice(0, 8)
 
   return (
     <div className="space-y-6">

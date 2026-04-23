@@ -1,14 +1,18 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts'
-import { fetchIndicatorData } from '../lib/supabase'
+import { indicatorApi } from '../lib/api'
 import { formatNumber } from '../lib/helpers'
 import { COLORS } from '../constants/colors'
 
 type Period = '1M' | '3M' | '6M' | '1Y' | 'ALL'
 
 const PERIOD_DAYS: Record<Period, number | undefined> = {
-  '1M': 30, '3M': 90, '6M': 180, '1Y': 365, 'ALL': undefined,
+  '1M': 30,
+  '3M': 90,
+  '6M': 180,
+  '1Y': 365,
+  'ALL': undefined,
 }
 
 function PeriodSelector({ value, onChange }: { value: Period; onChange: (p: Period) => void }) {
@@ -37,7 +41,7 @@ function GprTab({ period }: { period: Period }) {
   const days = PERIOD_DAYS[period]
   const { data, isLoading } = useQuery({
     queryKey: ['indicator', 'gpr', period],
-    queryFn: () => fetchIndicatorData('indicator_gpr_daily_logs', 'reference_date,ai_gpr_index,historical_gpr_index', days),
+    queryFn: () => indicatorApi.series('gpr', days),
   })
 
   return (
@@ -51,7 +55,7 @@ function GprTab({ period }: { period: Period }) {
             <Tooltip contentStyle={{ fontSize: 11, fontFamily: 'DM Mono' }} />
             <Legend wrapperStyle={{ fontSize: 11 }} />
             <Line type="monotone" dataKey="ai_gpr_index" name="AI GPR" stroke={COLORS.primary} strokeWidth={2} dot={false} />
-            <Line type="monotone" dataKey="historical_gpr_index" name="Historical" stroke={COLORS.neutral} strokeWidth={1.5} dot={false} strokeDasharray="4 2" />
+            <Line type="monotone" dataKey="gpr_original" name="GPR" stroke={COLORS.neutral} strokeWidth={1.5} dot={false} strokeDasharray="4 2" />
           </LineChart>
         </ResponsiveContainer>
       )}
@@ -63,36 +67,24 @@ function EcosTab({ period }: { period: Period }) {
   const days = PERIOD_DAYS[period]
   const { data, isLoading } = useQuery({
     queryKey: ['indicator', 'ecos', period],
-    queryFn: () => fetchIndicatorData('indicator_ecos_daily_logs', 'reference_date,krw_usd_rate,krw_jpy_rate,krw_eur_rate,krw_cny_rate', days),
+    queryFn: () => indicatorApi.series('ecos', days),
   })
 
-  const RATE_COLORS = ['#0D9488', '#F59E0B', '#6366F1', '#EC4899']
-  const RATE_KEYS = [
-    { key: 'krw_usd_rate', name: 'KRW/USD' },
-    { key: 'krw_jpy_rate', name: 'KRW/JPY' },
-    { key: 'krw_eur_rate', name: 'KRW/EUR' },
-    { key: 'krw_cny_rate', name: 'KRW/CNY' },
-  ]
-
   return (
-    <div className="space-y-4">
-      <ChartCard title="원화 환율 (ECOS)">
-        {isLoading ? <div className="h-48 flex items-center justify-center text-sm text-gray-400">로딩 중...</div> : (
-          <ResponsiveContainer width="100%" height={220}>
-            <LineChart data={data ?? []}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" />
-              <XAxis dataKey="reference_date" tick={{ fontSize: 9, fontFamily: 'DM Mono' }} tickFormatter={v => v.slice(5)} />
-              <YAxis tick={{ fontSize: 9, fontFamily: 'DM Mono' }} width={50} />
-              <Tooltip contentStyle={{ fontSize: 11, fontFamily: 'DM Mono' }} formatter={(v: number) => formatNumber(v)} />
-              <Legend wrapperStyle={{ fontSize: 11 }} />
-              {RATE_KEYS.map(({ key, name }, i) => (
-                <Line key={key} type="monotone" dataKey={key} name={name} stroke={RATE_COLORS[i]} strokeWidth={2} dot={false} />
-              ))}
-            </LineChart>
-          </ResponsiveContainer>
-        )}
-      </ChartCard>
-    </div>
+    <ChartCard title="원화 환율 (ECOS)">
+      {isLoading ? <div className="h-48 flex items-center justify-center text-sm text-gray-400">로딩 중...</div> : (
+        <ResponsiveContainer width="100%" height={220}>
+          <LineChart data={data ?? []}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" />
+            <XAxis dataKey="reference_date" tick={{ fontSize: 9, fontFamily: 'DM Mono' }} tickFormatter={v => v.slice(5)} />
+            <YAxis tick={{ fontSize: 9, fontFamily: 'DM Mono' }} width={50} />
+            <Tooltip contentStyle={{ fontSize: 11, fontFamily: 'DM Mono' }} formatter={(v: number) => formatNumber(v)} />
+            <Legend wrapperStyle={{ fontSize: 11 }} />
+            <Line type="monotone" dataKey="krw_usd_rate" name="KRW/USD" stroke="#0D9488" strokeWidth={2} dot={false} />
+          </LineChart>
+        </ResponsiveContainer>
+      )}
+    </ChartCard>
   )
 }
 
@@ -100,14 +92,14 @@ function FredTab({ period }: { period: Period }) {
   const days = PERIOD_DAYS[period]
   const { data, isLoading } = useQuery({
     queryKey: ['indicator', 'fred', period],
-    queryFn: () => fetchIndicatorData('indicator_fred_daily_logs', 'reference_date,fred_wti,fred_brent,fred_henry_hub,fred_treasury_10y,fred_treasury_2y,fred_dxy', days),
+    queryFn: () => indicatorApi.series('fred', days),
   })
 
   const charts = [
     { title: '원유 가격 (USD)', keys: [{ key: 'fred_wti', name: 'WTI', color: COLORS.primary }, { key: 'fred_brent', name: 'Brent', color: COLORS.up }] },
     { title: '미국 국채 금리 (%)', keys: [{ key: 'fred_treasury_10y', name: '10Y', color: COLORS.primary }, { key: 'fred_treasury_2y', name: '2Y', color: '#F59E0B' }] },
-    { title: '천연가스 (USD)', keys: [{ key: 'fred_henry_hub', name: 'Henry Hub', color: '#6366F1' }] },
-    { title: '달러 인덱스 (DXY)', keys: [{ key: 'fred_dxy', name: 'DXY', color: '#EC4899' }] },
+    { title: '천연가스 (USD)', keys: [{ key: 'fred_natural_gas', name: 'Natural Gas', color: '#6366F1' }] },
+    { title: '달러 인덱스 (DXY)', keys: [{ key: 'fred_usd_index', name: 'DXY', color: '#EC4899' }] },
   ]
 
   return (
@@ -137,16 +129,14 @@ function KosisTab({ period }: { period: Period }) {
   const days = PERIOD_DAYS[period]
   const { data, isLoading } = useQuery({
     queryKey: ['indicator', 'kosis', period],
-    queryFn: () => fetchIndicatorData('indicator_kosis_monthly_logs', 'reference_date,cpi_total,cpi_food,cpi_energy,cpi_housing,cpi_clothing,cpi_healthcare', days),
+    queryFn: () => indicatorApi.series('kosis', days),
   })
 
   const keys = [
     { key: 'cpi_total', name: '종합', color: COLORS.primary },
-    { key: 'cpi_food', name: '식품', color: '#F59E0B' },
-    { key: 'cpi_energy', name: '에너지', color: COLORS.down },
-    { key: 'cpi_housing', name: '주거', color: '#6366F1' },
-    { key: 'cpi_clothing', name: '의류', color: '#EC4899' },
-    { key: 'cpi_healthcare', name: '의료', color: '#10B981' },
+    { key: 'core_cpi', name: '근원', color: '#F59E0B' },
+    { key: 'cpi_petroleum', name: '석유류', color: COLORS.down },
+    { key: 'cpi_agro', name: '농축수산물', color: '#6366F1' },
   ]
 
   return (
@@ -171,9 +161,9 @@ function KosisTab({ period }: { period: Period }) {
 
 type Tab = 'gpr' | 'ecos' | 'fred' | 'kosis'
 const TABS: { key: Tab; label: string }[] = [
-  { key: 'gpr',   label: 'GPR 위기지수' },
-  { key: 'ecos',  label: '원화 환율' },
-  { key: 'fred',  label: 'FRED 원자재/금리' },
+  { key: 'gpr', label: 'GPR 위기지수' },
+  { key: 'ecos', label: '원화 환율' },
+  { key: 'fred', label: 'FRED 원자재/금리' },
   { key: 'kosis', label: '한국 CPI' },
 ]
 
@@ -203,9 +193,9 @@ export function IndicatorPage() {
         ))}
       </div>
 
-      {tab === 'gpr'   && <GprTab period={period} />}
-      {tab === 'ecos'  && <EcosTab period={period} />}
-      {tab === 'fred'  && <FredTab period={period} />}
+      {tab === 'gpr' && <GprTab period={period} />}
+      {tab === 'ecos' && <EcosTab period={period} />}
+      {tab === 'fred' && <FredTab period={period} />}
       {tab === 'kosis' && <KosisTab period={period} />}
     </div>
   )

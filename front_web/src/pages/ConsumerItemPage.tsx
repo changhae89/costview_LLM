@@ -1,8 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Plus, Pencil, Trash2, RotateCcw } from 'lucide-react'
-import { fetchConsumerItems, fetchCategories } from '../lib/supabase'
-import { consumerItemApi } from '../lib/api'
+import { categoryApi, consumerItemApi } from '../lib/api'
 import { Modal, ConfirmDialog } from '../components/ui/Modal'
 import { formatDate } from '../lib/helpers'
 
@@ -125,12 +124,12 @@ export function ConsumerItemPage() {
 
   const { data: items = [], isLoading } = useQuery({
     queryKey: ['consumerItems', showDeleted],
-    queryFn: () => fetchConsumerItems(showDeleted),
+    queryFn: () => consumerItemApi.list(showDeleted),
   })
 
   const { data: categories = [] } = useQuery({
     queryKey: ['categories'],
-    queryFn: fetchCategories,
+    queryFn: categoryApi.list,
   })
 
   const catMap = Object.fromEntries((categories as Category[]).map((c: Category) => [c.code, c.name_ko]))
