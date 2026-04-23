@@ -78,8 +78,22 @@ export const newsApi = {
     date_to: filters.dateTo,
     show_deleted: filters.showDeleted,
   })}`).then(parseJson),
-  analyses: (page: number, pageSize: number) =>
-    apiFetch(`/api/v1/news/analyses${toQuery({ page, page_size: pageSize })}`).then(parseJson),
+  analyses: (page: number, pageSize: number, filters: {
+    search?: string
+    minReliability?: number
+    timeHorizon?: string
+    geoScope?: string
+    koreaRelevance?: string
+  } = {}) =>
+    apiFetch(`/api/v1/news/analyses${toQuery({
+      page,
+      page_size: pageSize,
+      search: filters.search,
+      min_reliability: filters.minReliability,
+      time_horizon: filters.timeHorizon,
+      geo_scope: filters.geoScope,
+      korea_relevance: filters.koreaRelevance,
+    })}`).then(parseJson),
 }
 
 export const causalApi = {
