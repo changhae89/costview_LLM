@@ -151,7 +151,7 @@ export function CausalPage() {
               <XAxis dataKey="month" tick={{ fontSize: 9, fontFamily: 'DM Mono' }} />
               <YAxis tick={{ fontSize: 9, fontFamily: 'DM Mono' }} />
               <Tooltip contentStyle={{ fontSize: 10 }} />
-              <Bar dataKey="count" fill={COLORS.seafoam} radius={[3,3,0,0]} />
+              <Bar dataKey="count" fill={COLORS.series3} radius={[3,3,0,0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>

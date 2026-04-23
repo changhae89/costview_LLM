@@ -8,9 +8,11 @@ import { CausalPage } from '../pages/CausalPage'
 import { IndicatorPage } from '../pages/IndicatorPage'
 import { CategoryPage } from '../pages/CategoryPage'
 import { ConsumerItemPage } from '../pages/ConsumerItemPage'
+import { BriefingPage } from '../pages/BriefingPage'
 
 export const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
+  { path: '/briefing', element: <BriefingPage /> },
   {
     element: <RequireAuth />,
     children: [{

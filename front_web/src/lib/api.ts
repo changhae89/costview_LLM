@@ -127,6 +127,11 @@ export const categoryApi = {
     apiFetch(`/api/v1/categories/${code}`, { method: 'DELETE' }).then(parseJson),
 }
 
+export const briefingApi = {
+  today: () => fetch(`${BASE}/api/v1/briefing/today`).then(r => r.json()).then(j => j?.data ?? null),
+  history: (days = 7) => fetch(`${BASE}/api/v1/briefing/history?days=${days}`).then(r => r.json()).then(j => j?.data ?? []),
+}
+
 export const consumerItemApi = {
   list: (showDeleted = false) =>
     apiFetch(`/api/v1/consumer-items/${toQuery({ show_deleted: showDeleted })}`).then(parseJson),
