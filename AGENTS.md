@@ -67,6 +67,9 @@ Applies to `prd/`.
 - Prefer clear CLI entrypoints and `python-dotenv` / env vars for secrets.
 - Use **UTC** for stored/processed timestamps unless a script documents a different convention.
 - Keep scripts runnable locally and compatible with how they are invoked from GitHub Actions.
+- **LangChain 프롬프트 중괄호**: 프롬프트 문자열 내 JSON 예시·리터럴 중괄호는 반드시 `{{`, `}}`로 이스케이프한다. 단일 `{...}`는 템플릿 변수로 해석되어 `ChatPromptTemplate` 생성 시 ValueError 발생.
+- **DB 스키마 선확인**: 쿼리에 컬럼을 추가하기 전 실제 테이블 스키마를 확인한다 (Supabase 대시보드 또는 `\d tablename`). 없는 컬럼 조회는 APIError `42703`을 유발한다.
+- **신규 테이블 선생성**: 코드 작성 전 마이그레이션 SQL을 먼저 실행한다. 테이블이 없는 상태로 코드를 배포하면 저장 단계에서 실패한다.
 
 ## GitHub Actions rules
 
@@ -97,6 +100,14 @@ These are **hard expectations** for humans and agents—not optional style tips.
 
 ## Verification and agent harnesses
 
+### 수정 → 테스트 → 반복 원칙
+
+모든 변경은 아래 사이클을 완료해야 done으로 간주한다:
+
+1. **수정**: 코드 작성
+2. **테스트**: 아래 테스트 항목을 순서대로 실행
+3. **미통과 시 재수정**: 통과할 때까지 1~2 반복 후 커밋
+
 ### Automated test entrypoints (run after non-trivial changes)
 
 - **Backend** (`backend/`): no dedicated test suite; verify endpoints manually or with an HTTP client.
@@ -124,6 +135,20 @@ Agents should **run the relevant commands above** (or explain why they cannot, e
 - Happy path **and** failure path considered (see [Error handling rules](#error-handling-rules)).
 - Relevant test suite passes locally.
 - No new hardcoded secrets or production URLs.
+- 신규 DB 테이블을 사용하는 경우, 마이그레이션을 코드 커밋 **전** 적용하고 실제 저장 쿼리 성공을 확인한다.
+- LLM 파이프라인(`prd/`)은 빌드·유닛 테스트뿐 아니라 **end-to-end 실행**(DB 저장까지) 성공을 확인해야 done으로 간주한다.
+
+### LLM 파이프라인 체크리스트 (prd/ 신규 기능 추가 시)
+
+| 순서 | 항목 | 확인 방법 |
+|------|------|-----------|
+| 1 | 프롬프트 중괄호 이스케이프 | `ChatPromptTemplate.from_messages(...)` import 시 오류 없음 |
+| 2 | 쿼리 컬럼이 실제 테이블에 존재 | Supabase 대시보드 또는 `\d tablename` 로 스키마 확인 |
+| 3 | 신규 테이블 마이그레이션 선실행 | SQL 실행 후 테이블 존재 확인 |
+| 4 | 헬퍼 함수 단위 테스트 | `python -c "from prd.llm... import ..."` |
+| 5 | `pytest prd/tests/` 전체 통과 | 기존 테스트 회귀 없음 확인 |
+| 6 | **수정한 프로그램 직접 실행** | `python -m prd.<entrypoint>` 실행 후 오류 없이 완료 확인 |
+| 7 | **DB 저장 확인** | `SELECT ... FROM <table> ORDER BY created_at DESC LIMIT 3` 으로 실제 저장된 행 조회 |
 
 ## Git Workflow
 
