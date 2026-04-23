@@ -8,6 +8,7 @@ import { Drawer } from '../components/ui/Drawer'
 import { formatCategory } from '../constants/category'
 import { formatPct, formatDate } from '../lib/helpers'
 import { COLORS } from '../constants/colors'
+import { Loading, EmptyState } from '../components/ui/Loading'
 
 const PAGE_SIZE = 50
 const CATS = ['fuel','food','energy','gas','shipping','price','commodity','cost','oil','inflation']
@@ -80,10 +81,10 @@ export function CausalPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-bold text-gray-900">인과관계 탐색</h1>
+      <h1 className="text-xl font-bold text-gray-900">물가 영향 분석</h1>
 
       {/* 필터 */}
-      <div className="flex flex-wrap gap-2 rounded-xl bg-white p-3 border border-gray-100">
+      <div className="flex flex-wrap gap-2 rounded-xl bg-white p-3 border border-gray-100 shadow-sm animate-fade-in-up [animation-delay:80ms]">
         {CATS.map(c => (
           <button key={c} onClick={() => set('category', c)}
             className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${filters.category === c ? 'bg-primary text-white border-primary' : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}>
@@ -114,9 +115,9 @@ export function CausalPage() {
       </div>
 
       {/* 차트 3개 */}
-      <div className="grid grid-cols-3 gap-4">
-        <div className="rounded-xl bg-white p-4 border border-gray-100">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">카테고리 × 방향</p>
+      <div className="grid grid-cols-3 gap-4 animate-fade-in-up [animation-delay:160ms]">
+        <div className="rounded-lg bg-white p-4 border border-gray-100 shadow-sm">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">품목별 방향</p>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart layout="vertical" data={catChart} margin={{ left: 10 }}>
               <XAxis type="number" tick={{ fontSize: 9, fontFamily: 'DM Mono' }} />
@@ -129,8 +130,8 @@ export function CausalPage() {
           </ResponsiveContainer>
         </div>
 
-        <div className="rounded-xl bg-white p-4 border border-gray-100">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">충격% 분포</p>
+        <div className="rounded-lg bg-white p-4 border border-gray-100 shadow-sm">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">가격 충격 분포</p>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={shockHist}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F3F4F6" />
@@ -142,8 +143,8 @@ export function CausalPage() {
           </ResponsiveContainer>
         </div>
 
-        <div className="rounded-xl bg-white p-4 border border-gray-100">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">전달기간 분포</p>
+        <div className="rounded-lg bg-white p-4 border border-gray-100 shadow-sm">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">영향 전달 기간</p>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={monthDist}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F3F4F6" />
@@ -157,11 +158,11 @@ export function CausalPage() {
       </div>
 
       {/* 테이블 */}
-      <div className="rounded-xl bg-white border border-gray-100 overflow-hidden">
+      <div className="rounded-xl bg-white border border-gray-100 shadow-sm overflow-hidden animate-fade-in-up [animation-delay:240ms]">
         <div className="px-4 py-2.5 border-b border-gray-50">
           <span className="font-mono text-xs text-gray-400">총 {(data?.total ?? 0).toLocaleString()}건</span>
         </div>
-        {isLoading ? <div className="py-12 text-center text-sm text-gray-400">로딩 중...</div> : (
+        {isLoading ? <Loading /> : (
           <table className="w-full text-sm">
             <thead className="bg-gray-50 text-xs text-gray-500">
               <tr>
@@ -177,6 +178,9 @@ export function CausalPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
+              {!(data?.data ?? []).length && (
+                <tr><td colSpan={9}><EmptyState message="인과관계 데이터가 없습니다" sub="필터 조건을 변경해 보세요" /></td></tr>
+              )}
               {(data?.data ?? []).map((row: Record<string, unknown>) => {
                 const analysis = row.news_analyses as Record<string, unknown>
                 return (
@@ -212,7 +216,7 @@ export function CausalPage() {
       </div>
 
       {/* 상세 Drawer */}
-      <Drawer open={!!selected} onClose={() => setSelected(null)} title="인과관계 상세">
+      <Drawer open={!!selected} onClose={() => setSelected(null)} title="영향 분석 상세">
         {selected && (
           <div className="space-y-5 text-sm">
             <div className="flex flex-wrap gap-2">

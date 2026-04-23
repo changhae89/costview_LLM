@@ -4,6 +4,7 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianG
 import { indicatorApi } from '../lib/api'
 import { formatNumber } from '../lib/helpers'
 import { COLORS } from '../constants/colors'
+import { Loading } from '../components/ui/Loading'
 
 type Period = '1M' | '3M' | '6M' | '1Y' | 'ALL'
 
@@ -30,7 +31,7 @@ function PeriodSelector({ value, onChange }: { value: Period; onChange: (p: Peri
 
 function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-xl bg-white p-5 border border-gray-100">
+    <div className="rounded-lg bg-white p-5 border border-gray-100 shadow-sm animate-fade-in-up">
       <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">{title}</p>
       {children}
     </div>
@@ -45,8 +46,8 @@ function GprTab({ period }: { period: Period }) {
   })
 
   return (
-    <ChartCard title="글로벌 위험지수">
-      {isLoading ? <div className="h-48 flex items-center justify-center text-sm text-gray-400">로딩 중...</div> : (
+    <ChartCard title="글로벌 불안지수">
+      {isLoading ? <Loading className="h-48 flex items-center justify-center" /> : (
         <ResponsiveContainer width="100%" height={220}>
           <LineChart data={data ?? []}>
             <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" />
@@ -54,8 +55,8 @@ function GprTab({ period }: { period: Period }) {
             <YAxis tick={{ fontSize: 9, fontFamily: 'DM Mono' }} width={40} />
             <Tooltip contentStyle={{ fontSize: 11, fontFamily: 'DM Mono' }} />
             <Legend wrapperStyle={{ fontSize: 11 }} />
-            <Line type="monotone" dataKey="ai_gpr_index" name="글로벌 위험지수" stroke={COLORS.primary} strokeWidth={2} dot={false} />
-            <Line type="monotone" dataKey="gpr_original" name="기존 위험지수" stroke={COLORS.neutral} strokeWidth={1.5} dot={false} strokeDasharray="4 2" />
+            <Line type="monotone" dataKey="ai_gpr_index" name="글로벌 불안지수" stroke={COLORS.primary} strokeWidth={2} dot={false} />
+            <Line type="monotone" dataKey="gpr_original" name="기존 지수" stroke={COLORS.neutral} strokeWidth={1.5} dot={false} strokeDasharray="4 2" />
           </LineChart>
         </ResponsiveContainer>
       )}
@@ -71,8 +72,8 @@ function EcosTab({ period }: { period: Period }) {
   })
 
   return (
-    <ChartCard title="원화 환율 (ECOS)">
-      {isLoading ? <div className="h-48 flex items-center justify-center text-sm text-gray-400">로딩 중...</div> : (
+    <ChartCard title="원/달러 환율">
+      {isLoading ? <Loading className="h-48 flex items-center justify-center" /> : (
         <ResponsiveContainer width="100%" height={220}>
           <LineChart data={data ?? []}>
             <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" />
@@ -80,7 +81,7 @@ function EcosTab({ period }: { period: Period }) {
             <YAxis tick={{ fontSize: 9, fontFamily: 'DM Mono' }} width={50} />
             <Tooltip contentStyle={{ fontSize: 11, fontFamily: 'DM Mono' }} formatter={(v: number) => formatNumber(v)} />
             <Legend wrapperStyle={{ fontSize: 11 }} />
-            <Line type="monotone" dataKey="krw_usd_rate" name="KRW/USD" stroke="#0D9488" strokeWidth={2} dot={false} />
+            <Line type="monotone" dataKey="krw_usd_rate" name="KRW/USD" stroke={COLORS.primary} strokeWidth={2} dot={false} />
           </LineChart>
         </ResponsiveContainer>
       )}
@@ -96,17 +97,17 @@ function FredTab({ period }: { period: Period }) {
   })
 
   const charts = [
-    { title: '원유 가격 (USD)', keys: [{ key: 'fred_wti', name: 'WTI', color: COLORS.primary }, { key: 'fred_brent', name: 'Brent', color: COLORS.up }] },
-    { title: '미국 국채 금리 (%)', keys: [{ key: 'fred_treasury_10y', name: '10Y', color: COLORS.primary }, { key: 'fred_treasury_2y', name: '2Y', color: '#F59E0B' }] },
-    { title: '천연가스 (USD)', keys: [{ key: 'fred_natural_gas', name: 'Natural Gas', color: '#6366F1' }] },
-    { title: '달러 인덱스 (DXY)', keys: [{ key: 'fred_usd_index', name: 'DXY', color: '#EC4899' }] },
+    { title: '국제 유가 (달러)', keys: [{ key: 'fred_wti', name: 'WTI', color: COLORS.primary }, { key: 'fred_brent', name: '브렌트', color: COLORS.up }] },
+    { title: '미국 국채 금리', keys: [{ key: 'fred_treasury_10y', name: '10년물', color: COLORS.primary }, { key: 'fred_treasury_2y', name: '2년물', color: COLORS.warning }] },
+    { title: '천연가스 (달러)', keys: [{ key: 'fred_natural_gas', name: '천연가스', color: COLORS.series3 }] },
+    { title: '달러 강세 지수', keys: [{ key: 'fred_usd_index', name: '달러지수', color: COLORS.series4 }] },
   ]
 
   return (
     <div className="grid grid-cols-2 gap-4">
       {charts.map(({ title, keys }) => (
         <ChartCard key={title} title={title}>
-          {isLoading ? <div className="h-36 flex items-center justify-center text-sm text-gray-400">로딩 중...</div> : (
+          {isLoading ? <Loading className="h-36 flex items-center justify-center" /> : (
             <ResponsiveContainer width="100%" height={160}>
               <LineChart data={data ?? []}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" />
@@ -133,15 +134,15 @@ function KosisTab({ period }: { period: Period }) {
   })
 
   const keys = [
-    { key: 'cpi_total', name: '종합', color: COLORS.primary },
-    { key: 'core_cpi', name: '근원', color: '#F59E0B' },
-    { key: 'cpi_petroleum', name: '석유류', color: COLORS.down },
-    { key: 'cpi_agro', name: '농축수산물', color: '#6366F1' },
+    { key: 'cpi_total', name: '종합물가', color: COLORS.primary },
+    { key: 'core_cpi', name: '근원물가', color: COLORS.warning },
+    { key: 'cpi_petroleum', name: '석유류', color: COLORS.up },
+    { key: 'cpi_agro', name: '농축수산물', color: COLORS.series3 },
   ]
 
   return (
-    <ChartCard title="한국 소비자물가지수 (KOSIS, 월별)">
-      {isLoading ? <div className="h-48 flex items-center justify-center text-sm text-gray-400">로딩 중...</div> : (
+    <ChartCard title="한국 소비자물가지수 (월별)">
+      {isLoading ? <Loading className="h-48 flex items-center justify-center" /> : (
         <ResponsiveContainer width="100%" height={240}>
           <LineChart data={data ?? []}>
             <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" />
@@ -161,10 +162,10 @@ function KosisTab({ period }: { period: Period }) {
 
 type Tab = 'gpr' | 'ecos' | 'fred' | 'kosis'
 const TABS: { key: Tab; label: string }[] = [
-  { key: 'gpr', label: '글로벌 위험지수' },
-  { key: 'ecos', label: '원화 환율' },
-  { key: 'fred', label: 'FRED 원자재/금리' },
-  { key: 'kosis', label: '한국 CPI' },
+  { key: 'gpr',   label: '글로벌 불안지수' },
+  { key: 'ecos',  label: '원/달러 환율' },
+  { key: 'fred',  label: '원자재 & 금리' },
+  { key: 'kosis', label: '한국 물가지수' },
 ]
 
 export function IndicatorPage() {
@@ -184,7 +185,7 @@ export function IndicatorPage() {
         </div>
       )}
 
-      <div className="flex gap-1 border-b border-gray-200">
+      <div className="flex gap-1 border-b border-gray-200 animate-fade-in-up [animation-delay:80ms]">
         {TABS.map(t => (
           <button key={t.key} onClick={() => setTab(t.key)}
             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${tab === t.key ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>

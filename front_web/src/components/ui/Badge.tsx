@@ -1,4 +1,5 @@
 import { cn } from '../../lib/helpers'
+import { COLORS } from '../../constants/colors'
 
 const STATUS_STYLES: Record<string, string> = {
   processed: 'bg-green-50 text-green-700',
@@ -17,22 +18,25 @@ export function StatusBadge({ status }: { status: string | null }) {
 }
 
 export function DirectionBadge({ direction }: { direction: string }) {
-  const styles: Record<string, string> = {
-    up:      'text-up bg-[#FCEBEB]',
-    down:    'text-down bg-[#EAF3DE]',
-    neutral: 'text-gray-500 bg-gray-100',
+  const config: Record<string, { bg: string; color: string; label: string }> = {
+    up:      { bg: COLORS.tagUpBg,   color: COLORS.tagUpText,   label: '▲ 상승' },
+    down:    { bg: COLORS.tagDownBg, color: COLORS.tagDownText, label: '▼ 하락' },
+    neutral: { bg: '#F3F4F6',        color: COLORS.textMuted,   label: '─ 중립' },
   }
-  const labels: Record<string, string> = { up: '▲ 상승', down: '▼ 하락', neutral: '─ 중립' }
+  const c = config[direction] ?? config.neutral
   return (
-    <span className={cn('inline-flex items-center rounded px-2 py-0.5 text-xs font-semibold', styles[direction] ?? 'bg-gray-100')}>
-      {labels[direction] ?? direction}
+    <span
+      className="inline-flex items-center rounded px-2 py-0.5 text-xs font-semibold"
+      style={{ backgroundColor: c.bg, color: c.color }}
+    >
+      {c.label}
     </span>
   )
 }
 
 export function ReliabilityBar({ value }: { value: number }) {
   const pct = Math.round(value * 100)
-  const color = pct >= 80 ? '#D85A30' : pct >= 50 ? '#EF9F27' : '#B4B2A9'
+  const color = pct >= 80 ? COLORS.primary : pct >= 50 ? COLORS.warning : COLORS.neutral
   return (
     <div className="flex items-center gap-2">
       <div className="h-1.5 w-16 rounded-full bg-gray-200 overflow-hidden">
@@ -45,9 +49,9 @@ export function ReliabilityBar({ value }: { value: number }) {
 
 export function MagnitudeDots({ magnitude }: { magnitude: string }) {
   const dotColors: Record<string, string[]> = {
-    high:   ['#D85A30', '#D85A30', '#D85A30'],
-    medium: ['#EF9F27', '#EF9F27', '#E5E7EB'],
-    low:    ['#E5E7EB', '#E5E7EB', '#E5E7EB'],
+    high:   [COLORS.dotHigh, COLORS.dotHigh, COLORS.dotHigh],
+    medium: [COLORS.dotMed,  COLORS.dotMed,  COLORS.dotLow],
+    low:    [COLORS.dotLow,  COLORS.dotLow,  COLORS.dotLow],
   }
   const dots = dotColors[magnitude] ?? dotColors.low
   return (
