@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
-import { fetchCausalChains, fetchCausalStats } from '../lib/supabase'
+import { causalApi } from '../lib/api'
 import { DirectionBadge, MagnitudeDots, ReliabilityBar } from '../components/ui/Badge'
 import { Pagination } from '../components/ui/Pagination'
 import { Drawer } from '../components/ui/Drawer'
@@ -29,14 +29,14 @@ export function CausalPage() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['causal', page, filters],
-    queryFn: () => fetchCausalChains(page, PAGE_SIZE, {
+    queryFn: () => causalApi.list(page, PAGE_SIZE, {
       category: filters.category || undefined,
       direction: filters.direction || undefined,
       magnitude: filters.magnitude || undefined,
       transmissionMonths: filters.transmissionMonths || undefined,
     }),
   })
-  const { data: stats } = useQuery({ queryKey: ['causalStats'], queryFn: fetchCausalStats })
+  const { data: stats } = useQuery({ queryKey: ['causalStats'], queryFn: causalApi.stats })
   const totalPages = Math.ceil((data?.total ?? 0) / PAGE_SIZE)
 
   const catChart = useMemo(() => {
