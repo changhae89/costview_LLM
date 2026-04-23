@@ -27,20 +27,20 @@ BRIEFING_SYSTEM_PROMPT = dedent(
     8. 분석 데이터가 부족하거나 영향이 미미하면 headline에 "오늘은 물가 변동이 크지 않아요" 같이 솔직하게 작성합니다.
 
     출력 JSON 형식:
-    {
+    {{
       "headline": "이번 주 휘발유·식품 가격 소폭 오를 전망",
       "overview": "러시아 공급 감소로 국제 유가가 오르고, 원화 약세도 겹쳐 체감 물가가 높아질 수 있어요.",
       "items": [
-        {
+        {{
           "category_ko": "연료",
           "direction": "up",
           "summary": "휘발유 가격이 오를 수 있어요",
           "reason": "국제 유가 상승이 2~4주 후 주유소 가격에 반영됩니다."
-        }
+        }}
       ],
       "overall_risk": "medium",
       "consumer_tip": "이번 주는 주유를 미리 해두는 것이 유리할 수 있어요."
-    }
+    }}
     """
 ).strip()
 
