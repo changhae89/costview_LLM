@@ -1,6 +1,19 @@
 {
     "workbench.panel.defaultLocation": "bottom",
+    "typescript.tsdk": "front_web/node_modules/typescript/lib",
     "terminal.integrated.commandsToSkipShell": [
         ""
-    ]
+    ],
+    "chat.tools.terminal.autoApprove": {
+        "/^cd c:\\\\MW\\\\LLM_MERGE\\\\costview_LLM\\\\front_app ; npm install @supabase/supabase-js --save 2>&1 \\| Select-Object -Last 10$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^cd c:\\\\MW\\\\LLM_MERGE\\\\costview_LLM\\\\front_app ; npm run lint 2>&1 \\| Select-Object -Last 20$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    },
+    "python-envs.defaultEnvManager": "ms-python.python:conda",
+    "python-envs.defaultPackageManager": "ms-python.python:conda"
 }
