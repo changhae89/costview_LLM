@@ -1,5 +1,5 @@
 // screens/DashboardScreen.jsx — SCR-001 대시보드
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import {
   ActivityIndicator,
   BackHandler,
@@ -11,19 +11,24 @@ import {
   Text,
   TouchableOpacity,
   View,
+  Modal,
+  Pressable,
+  Animated,
+  PanResponder,
+  Dimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import DirectionDot from '../components/DirectionDot';
 import ReliabilityBadge from '../components/ReliabilityBadge';
 import { CATEGORY_MAP, DIRECTION_MAP, MAGNITUDE_MAP, formatCategory } from '../constants/category';
 import { COLORS } from '../constants/colors';
-import { formatDateTime, formatNumber } from '../lib/helpers';
+import { formatDateTime, formatNumber, getBenchmarkText, getIndexDescription } from '../lib/helpers';
 import { useDashboard } from '../hooks/useDashboard';
 import NewsDetailView from '../components/NewsDetailView';
 
 
 // ── 리스크 카드 ────────────────────────────────────────────────
-function RiskCard({ label, desc, value, change, date, maxValue }) {
+function RiskCard({ itemKey, label, desc, value, change, date, maxValue, onPressDetail }) {
   const changeNum = Number(change);
   const changeColor = changeNum > 0 ? '#FF8A7A' : '#6EE7B7';
   const changeText = changeNum > 0
@@ -47,6 +52,13 @@ function RiskCard({ label, desc, value, change, date, maxValue }) {
   return (
     <View style={styles.riskCard}>
       <Text style={styles.riskLabel}>{label}</Text>
+      <TouchableOpacity 
+        style={styles.infoBtn} 
+        hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+        onPress={() => onPressDetail({ key: itemKey, label, value, date })}
+      >
+        <Text style={styles.infoIcon}>ⓘ</Text>
+      </TouchableOpacity>
       {desc && <Text style={{fontSize: 8, color: 'rgba(255,255,255,0.4)', marginBottom: 4}}>{desc}</Text>}
       <Text style={styles.riskValue} numberOfLines={1}>{value !== null && value !== undefined && value !== '' ? formatNumber(value) : '-'}</Text>
       <View style={styles.riskBar}>
@@ -145,6 +157,46 @@ export default function DashboardScreen() {
   const { metrics, chains: rawChains, newsList, loading, refreshing, refetch } = useDashboard();
   const [selected, setSelected] = useState(null);
 
+  const [selectedRisk, setSelectedRisk] = useState(null);
+
+  // 애니메이션 & 제스처 (바텀 시트)
+  const panY = useRef(new Animated.Value(0)).current;
+  const resetPositionAnim = Animated.timing(panY, {
+    toValue: 0,
+    duration: 300,
+    useNativeDriver: true,
+  });
+  const closeAnim = Animated.timing(panY, {
+    toValue: Dimensions.get('window').height,
+    duration: 300,
+    useNativeDriver: true,
+  });
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_, gestureState) => gestureState.dy > 5,
+      onPanResponderMove: (_, gestureState) => {
+        if (gestureState.dy > 0) {
+          panY.setValue(gestureState.dy);
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (gestureState.dy > 150 || gestureState.vy > 1.0) {
+          closeAnim.start(() => setSelectedRisk(null));
+        } else {
+          resetPositionAnim.start();
+        }
+      },
+    })
+  ).current;
+
+  useEffect(() => {
+    if (selectedRisk) {
+      panY.setValue(0);
+    }
+  }, [selectedRisk, panY]);
+
   // 카테고리별 그룹핑 (중복 체인 카운팅)
   const chains = useMemo(() => {
     if (!rawChains?.length) return [];
@@ -164,6 +216,10 @@ export default function DashboardScreen() {
   // 뒤로가기 핸들링
   useEffect(() => {
     const onBackPress = () => {
+      if (selectedRisk) {
+        setSelectedRisk(null);
+        return true;
+      }
       if (selected) {
         setSelected(null);
         return true;
@@ -172,7 +228,7 @@ export default function DashboardScreen() {
     };
     const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
     return () => sub.remove();
-  }, [selected]);
+  }, [selected, selectedRisk]);
 
   const latest = metrics?.latest ?? {};
   const prev   = metrics?.prev ?? {};
@@ -181,7 +237,7 @@ export default function DashboardScreen() {
     { key: 'ai_gpr', label: '글로벌 위기 지수', desc: '지정학적 위기 지수', val: latest.ai_gpr_index, pval: prev.ai_gpr_index, date: latest.dates?.ai_gpr_index ?? latest.reference_date, max: 300 },
     { key: 'krw_usd', label: '원/달러 환율', desc: '거시 경제 환율', val: latest.krw_usd_rate, pval: prev.krw_usd_rate, date: latest.dates?.krw_usd_rate ?? latest.reference_date, max: 2000 },
     { key: 'wti', label: 'WTI 원유', desc: '국제 원유가 (달러)', val: latest.fred_wti, pval: prev.fred_wti, date: latest.dates?.fred_wti ?? latest.reference_date, max: 150 },
-    { key: 'cpi', label: '한국 소비자물가', desc: '전년동월대비 (%)', val: latest.cpi_total, pval: prev.cpi_total, date: latest.dates?.cpi_total ?? latest.reference_date, max: 10 },
+    { key: 'cpi', label: '한국 소비자물가', desc: '총지수 (2020=100)', val: latest.cpi_total, pval: prev.cpi_total, date: latest.dates?.cpi_total ?? latest.reference_date, max: 150 },
     { key: 'fed', label: '미 10년 국채', desc: '미국 10년물 금리 (%)', val: latest.fred_treasury_10y, pval: prev.fred_treasury_10y, date: latest.dates?.fred_treasury_10y ?? latest.reference_date, max: 8 },
   ];
 
@@ -203,13 +259,15 @@ export default function DashboardScreen() {
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.riskRow}>
             {CARDS.map(c => (
               <RiskCard 
-                key={c.key} 
+                key={c.key}
+                itemKey={c.key}
                 label={c.label} 
                 desc={c.desc} 
                 value={c.val} 
                 change={(c.val ?? 0) - (c.pval ?? 0)} 
                 date={c.date}
                 maxValue={c.max}
+                onPressDetail={setSelectedRisk}
               />
             ))}
           </ScrollView>
@@ -274,6 +332,49 @@ export default function DashboardScreen() {
           customBackText="대시보드"
         />
       )}
+
+      {/* 리스크 상세 벤치마크 바텀 시트 */}
+      <Modal
+        visible={!!selectedRisk}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setSelectedRisk(null)}
+      >
+        <Pressable style={styles.modalOverlay} onPress={() => setSelectedRisk(null)}>
+          <Animated.View
+            style={[
+              styles.bottomSheet,
+              { paddingBottom: Math.max(insets.bottom, 20), transform: [{ translateY: panY }] }
+            ]}
+            {...panResponder.panHandlers}
+          >
+            <Pressable onPress={e => e.stopPropagation()}>
+              <View style={styles.sheetHandle} />
+              <Text style={styles.sheetTitle}>{selectedRisk?.label}</Text>
+              
+              {/* 지표 설명 */}
+              <Text style={styles.sheetDescription}>
+                {selectedRisk ? getIndexDescription(selectedRisk.key) : ''}
+              </Text>
+
+              <View style={{ flexDirection: 'row', alignItems: 'baseline', marginBottom: 16 }}>
+                <Text style={styles.sheetValue}>{selectedRisk?.value !== null && selectedRisk?.value !== undefined ? formatNumber(selectedRisk?.value) : '-'}</Text>
+                <Text style={styles.sheetDate}>{selectedRisk?.date ? `(${selectedRisk?.date})` : ''}</Text>
+              </View>
+              <View style={styles.sheetContentBox}>
+                <Text style={styles.sheetBenchmarkText}>
+                  {selectedRisk ? getBenchmarkText(selectedRisk.key, selectedRisk.value) : ''}
+                </Text>
+              </View>
+              {selectedRisk?.key === 'ai_gpr' && (
+                <Text style={styles.sheetDisclaimer}>
+                  본 글로벌 위기 지수는 지정학적 위험 지수(GPR Index) 방법론을 참고하여 본 서비스의 AI가 실시간 뉴스 기반으로 분석한 결과입니다.
+                </Text>
+              )}
+            </Pressable>
+          </Animated.View>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -371,4 +472,56 @@ const styles = StyleSheet.create({
   tagText:     { fontSize: 10, fontWeight: '600' },
   tagGray:     { backgroundColor: '#F3F4F6', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2 },
   tagGrayText: { fontSize: 10, color: COLORS.textMuted },
+
+  // Info Button
+  infoBtn: { position: 'absolute', top: 10, right: 10, opacity: 0.6 },
+  infoIcon: { fontSize: 12, color: COLORS.white },
+
+  // Bottom Sheet Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  bottomSheet: {
+    backgroundColor: COLORS.white,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 24,
+    paddingTop: 7,
+  },
+  sheetHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: '#E5E7EB',
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: 20,
+  },
+  sheetTitle: { fontSize: 13, color: COLORS.textMuted, fontWeight: '600', marginBottom: 4 },
+  sheetDescription: { fontSize: 11, color: COLORS.textLight, marginBottom: 12, lineHeight: 16 },
+  sheetValue: { fontSize: 32, fontWeight: '800', color: COLORS.textPrimary, marginRight: 8 },
+  sheetDate:  { fontSize: 13, color: COLORS.textLight, fontWeight: '500' },
+  sheetContentBox: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 8,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+  },
+  sheetBenchmarkText: {
+    fontSize: 15,
+    lineHeight: 22,
+    fontWeight: '700',
+    color: COLORS.textPrimary,
+  },
+  sheetDisclaimer: {
+    fontSize: 10,
+    color: COLORS.textLight,
+    lineHeight: 14,
+    marginTop: 8,
+    textAlign: 'center',
+  },
 });

@@ -20,7 +20,7 @@ export function useDashboard() {
       ]);
       setMetrics(m);
       setChains(c ?? []);
-      setNewsList((n ?? []).slice(0, 10));
+      setNewsList((n?.data ?? []).slice(0, 10));
     } catch (e) {
       console.warn('[useDashboard] error:', e);
     } finally {
