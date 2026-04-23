@@ -37,7 +37,7 @@ function KpiCard({
   const trend = trendText(value, prev)
 
   return (
-    <div className="rounded-lg bg-white p-4 border border-gray-100">
+    <div className="rounded-lg bg-white p-4 border border-gray-100 shadow-sm transition-all hover:shadow-md hover:-translate-y-px">
       <div className="flex items-start justify-between gap-3">
         <p className="text-xs font-medium text-gray-500">{label}</p>
         <span className="font-mono text-[10px] text-gray-400">{date || '-'}</span>
@@ -47,7 +47,7 @@ function KpiCard({
         {unit && <span className="ml-1 text-sm text-gray-400">{unit}</span>}
       </p>
       <div className="mt-3 h-1.5 rounded-full bg-gray-100 overflow-hidden">
-        <div className="h-full rounded-full bg-primary" style={{ width: `${pct}%` }} />
+        <div className="h-full rounded-full bg-primary-accent" style={{ width: `${pct}%` }} />
       </div>
       <p className="mt-2 font-mono text-xs" style={{ color: trend.color }}>{trend.label}</p>
     </div>
@@ -88,21 +88,21 @@ export function DashboardPage() {
     <div className="space-y-5">
       <div>
         <h1 className="text-xl font-bold text-gray-900">대시보드</h1>
-        <p className="mt-1 text-xs text-gray-500">핵심 위험 지표와 최신 분석 흐름을 한 번에 확인합니다.</p>
+        <p className="mt-1 text-xs text-gray-500">물가에 영향을 주는 핵심 지표와 최신 분석을 한 번에 확인합니다.</p>
       </div>
 
-      <div className="grid grid-cols-5 gap-3">
-        <KpiCard label="글로벌 위험지수" value={first(kpi?.global_risk, 'ai_gpr_index')} prev={second(kpi?.global_risk, 'ai_gpr_index')} date={dateOf(kpi?.global_risk)} max={300} />
+      <div className="grid grid-cols-5 gap-3 animate-fade-in-up [animation-delay:80ms]">
+        <KpiCard label="글로벌 불안지수" value={first(kpi?.global_risk, 'ai_gpr_index')} prev={second(kpi?.global_risk, 'ai_gpr_index')} date={dateOf(kpi?.global_risk)} max={300} />
         <KpiCard label="원/달러 환율" value={first(kpi?.exchange_rate, 'krw_usd_rate')} prev={second(kpi?.exchange_rate, 'krw_usd_rate')} date={dateOf(kpi?.exchange_rate)} max={2000} unit="원" />
-        <KpiCard label="WTI 원유" value={first(kpi?.wti, 'fred_wti')} prev={second(kpi?.wti, 'fred_wti')} date={dateOf(kpi?.wti)} max={150} unit="$" />
+        <KpiCard label="국제 유가" value={first(kpi?.wti, 'fred_wti')} prev={second(kpi?.wti, 'fred_wti')} date={dateOf(kpi?.wti)} max={150} unit="$" />
         <KpiCard label="한국 소비자물가" value={first(kpi?.cpi, 'cpi_total')} prev={second(kpi?.cpi, 'cpi_total')} date={dateOf(kpi?.cpi)} max={10} unit="%" />
-        <KpiCard label="미 10년 국채" value={first(kpi?.treasury_10y, 'fred_treasury_10y')} prev={second(kpi?.treasury_10y, 'fred_treasury_10y')} date={dateOf(kpi?.treasury_10y)} max={8} unit="%" />
+        <KpiCard label="미 국채금리" value={first(kpi?.treasury_10y, 'fred_treasury_10y')} prev={second(kpi?.treasury_10y, 'fred_treasury_10y')} date={dateOf(kpi?.treasury_10y)} max={8} unit="%" />
       </div>
 
-      <div className="grid grid-cols-[1.1fr_0.9fr] gap-4">
-        <div className="rounded-lg bg-white p-5 border border-gray-100">
+      <div className="grid grid-cols-[1.1fr_0.9fr] gap-4 animate-fade-in-up [animation-delay:180ms]">
+        <div className="rounded-lg bg-white p-5 border border-gray-100 shadow-sm">
           <div className="mb-4 flex items-center justify-between">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">글로벌 위험지수 30일 추이</p>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">글로벌 불안지수 30일 추이</p>
             <span className="text-xs text-gray-400">{(riskTrend ?? []).length.toLocaleString()} points</span>
           </div>
           <ResponsiveContainer width="100%" height={220}>
@@ -116,8 +116,8 @@ export function DashboardPage() {
           </ResponsiveContainer>
         </div>
 
-        <div className="rounded-lg bg-white p-5 border border-gray-100">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">분석 품질</p>
+        <div className="rounded-lg bg-white p-5 border border-gray-100 shadow-sm">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">분석 현황</p>
           <div className="grid grid-cols-2 gap-3">
             <div className="rounded-lg bg-surface p-4">
               <p className="text-xs text-gray-500">최신 분석</p>
@@ -142,9 +142,9 @@ export function DashboardPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-[0.95fr_1.05fr] gap-4">
-        <div className="rounded-lg bg-white p-5 border border-gray-100">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">카테고리별 영향 방향</p>
+      <div className="grid grid-cols-[0.95fr_1.05fr] gap-4 animate-fade-in-up [animation-delay:280ms]">
+        <div className="rounded-lg bg-white p-5 border border-gray-100 shadow-sm">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">품목별 물가 영향</p>
           <ResponsiveContainer width="100%" height={260}>
             <BarChart layout="vertical" data={causalGrouped} margin={{ left: 16 }}>
               <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#F3F4F6" />
@@ -158,8 +158,8 @@ export function DashboardPage() {
           </ResponsiveContainer>
         </div>
 
-        <div className="rounded-lg bg-white p-5 border border-gray-100">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">최신 분석 뉴스</p>
+        <div className="rounded-lg bg-white p-5 border border-gray-100 shadow-sm">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">최신 뉴스 분석</p>
           <ul className="space-y-3">
             {((news ?? []) as Record<string, unknown>[]).map(item => {
               const chains = (item.causal_chains as { direction?: string }[]) ?? []

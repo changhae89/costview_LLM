@@ -2,11 +2,22 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --primary:        #F97316;
+  --primary-accent: #FED7AA;
+  --primary-dark:   #EA580C;
+  --up:             #EF4444;
+  --down:           #22C55E;
+  --neutral:        #9CA3AF;
+  --warning:        #F59E0B;
+  --surface:        #FFF7ED;
+}
+
 @layer base {
   * { box-sizing: border-box; }
   body {
     font-family: 'Plus Jakarta Sans', sans-serif;
-    background-color: #F4F7FA;
+    background-color: #FFFBF7;
     color: #111827;
   }
 }
@@ -15,12 +26,13 @@
   .font-tabular { font-variant-numeric: tabular-nums; }
 }
 
+/* ── Animations ── */
 @keyframes fadeInUp {
-  from { opacity: 0; transform: translateY(12px); }
+  from { opacity: 0; transform: translateY(14px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 .animate-fade-in-up {
-  animation: fadeInUp 0.3s cubic-bezier(0.16,1,0.3,1) both;
+  animation: fadeInUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 @keyframes slideInRight {
@@ -28,5 +40,20 @@
   to   { transform: translateX(0); }
 }
 .animate-slide-in-right {
-  animation: slideInRight 0.25s cubic-bezier(0.16,1,0.3,1) both;
+  animation: slideInRight 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Spinner ── */
+.spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid #E5E7EB;
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 0.65s linear infinite;
+  flex-shrink: 0;
 }

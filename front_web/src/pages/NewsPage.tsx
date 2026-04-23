@@ -5,6 +5,7 @@ import { newsApi } from '../lib/api'
 import { ReliabilityBar } from '../components/ui/Badge'
 import { Pagination } from '../components/ui/Pagination'
 import { Drawer } from '../components/ui/Drawer'
+import { Loading, EmptyState } from '../components/ui/Loading'
 import { formatDate } from '../lib/helpers'
 
 const PAGE_SIZE = 50
@@ -52,7 +53,7 @@ function SelectFilter({
 
 function Metric({ label, value, icon: Icon }: { label: string; value: string; icon: typeof ShieldCheck }) {
   return (
-    <div className="rounded-lg border border-gray-100 bg-white px-4 py-3">
+    <div className="rounded-lg border border-gray-100 bg-white px-4 py-3 shadow-sm">
       <div className="flex items-center gap-2 text-xs text-gray-500">
         <Icon size={14} />
         <span>{label}</span>
@@ -108,14 +109,14 @@ export function NewsPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-4 gap-3 animate-fade-in-up [animation-delay:80ms]">
         <Metric label="분석 뉴스" value={`${total.toLocaleString()}건`} icon={CalendarDays} />
         <Metric label="현재 페이지 평균 신뢰도" value={`${pageStats.avg}%`} icon={ShieldCheck} />
         <Metric label="한국 직접 관련" value={`${pageStats.direct.toLocaleString()}건`} icon={Filter} />
         <Metric label="고신뢰 분석" value={`${pageStats.high.toLocaleString()}건`} icon={ShieldCheck} />
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 rounded-xl bg-white p-3 border border-gray-100">
+      <div className="flex flex-wrap items-center gap-2 rounded-xl bg-white p-3 border border-gray-100 shadow-sm animate-fade-in-up [animation-delay:160ms]">
         <div className="relative">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
@@ -126,24 +127,24 @@ export function NewsPage() {
           />
         </div>
         <SelectFilter value={minReliability} onChange={setMinReliability} options={['0.8', '0.7', '0.5']} placeholder="신뢰도" />
-        <SelectFilter value={timeHorizon} onChange={setTimeHorizon} options={HORIZONS} placeholder="지평선" />
-        <SelectFilter value={geoScope} onChange={setGeoScope} options={GEO_SCOPES} placeholder="지역" />
-        <SelectFilter value={koreaRelevance} onChange={setKoreaRelevance} options={KOREA_RELEVANCE} placeholder="한국 관련" />
+        <SelectFilter value={timeHorizon} onChange={setTimeHorizon} options={HORIZONS} placeholder="영향 시기" />
+        <SelectFilter value={geoScope} onChange={setGeoScope} options={GEO_SCOPES} placeholder="영향 지역" />
+        <SelectFilter value={koreaRelevance} onChange={setKoreaRelevance} options={KOREA_RELEVANCE} placeholder="한국 관련도" />
       </div>
 
-      <div className="rounded-xl bg-white border border-gray-100 overflow-hidden">
+      <div className="rounded-xl bg-white border border-gray-100 shadow-sm overflow-hidden animate-fade-in-up [animation-delay:240ms]">
         <div className="px-4 py-2.5 border-b border-gray-50">
           <span className="font-mono text-xs text-gray-400">총 {total.toLocaleString()}건</span>
         </div>
-        {isLoading ? <div className="py-12 text-center text-sm text-gray-400">로딩 중...</div> : (
+        {isLoading ? <Loading /> : (
           <table className="w-full text-sm">
             <thead className="bg-gray-50 text-xs text-gray-500">
               <tr>
                 <th className="px-4 py-2.5 text-left font-medium">요약</th>
                 <th className="px-4 py-2.5 text-left font-medium w-28">신뢰도</th>
-                <th className="px-4 py-2.5 text-left font-medium w-24">지평선</th>
-                <th className="px-4 py-2.5 text-left font-medium w-24">지역</th>
-                <th className="px-4 py-2.5 text-left font-medium w-24">한국 관련</th>
+                <th className="px-4 py-2.5 text-left font-medium w-24">영향 시기</th>
+                <th className="px-4 py-2.5 text-left font-medium w-24">영향 지역</th>
+                <th className="px-4 py-2.5 text-left font-medium w-24">한국 관련도</th>
                 <th className="px-4 py-2.5 text-left font-medium w-28">분석일</th>
               </tr>
             </thead>
@@ -161,7 +162,7 @@ export function NewsPage() {
                 </tr>
               ))}
               {!rows.length && (
-                <tr><td colSpan={6} className="py-12 text-center text-sm text-gray-400">분석 결과가 없습니다.</td></tr>
+                <tr><td colSpan={6}><EmptyState message="분석 결과가 없습니다" sub="필터 조건을 변경해 보세요" /></td></tr>
               )}
             </tbody>
           </table>

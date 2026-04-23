@@ -8,24 +8,18 @@ export function Header() {
   const [open, setOpen] = useState(false)
 
   return (
-    <header
-      className="flex h-14 items-center justify-between px-6"
-      style={{
-        background: '#0D9488',
-        backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 200 200\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'n\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.9\' numOctaves=\'4\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23n)\' opacity=\'0.05\'/%3E%3C/svg%3E")',
-      }}
-    >
-      <span className="font-mono text-xs font-medium tracking-widest uppercase text-white/80">
-        COSTVIEW ADMIN
+    <header className="flex h-14 items-center justify-between px-6 bg-white border-b border-gray-100">
+      <span className="text-sm font-semibold text-gray-700 tracking-wide">
+        Costview Admin
       </span>
 
       <div className="flex items-center gap-4">
-        <span className="font-mono text-xs text-white/60">{formatDate(new Date().toISOString())}</span>
+        <span className="font-mono text-xs text-gray-400">{formatDate(new Date().toISOString())}</span>
 
         <div className="relative">
           <button
             onClick={() => setOpen(v => !v)}
-            className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs text-white/80 hover:bg-white/10 transition-colors"
+            className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-100 transition-colors"
           >
             <User size={14} />
             {user?.email?.split('@')[0] ?? 'account'}
