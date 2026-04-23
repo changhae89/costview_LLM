@@ -1,9 +1,10 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, Newspaper, GitBranch, BarChart2, Tag, ShoppingBag } from 'lucide-react'
+import { LayoutDashboard, Newspaper, GitBranch, BarChart2, Tag, ShoppingBag, BookOpen } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 
 const NAV = [
   { to: '/',           icon: LayoutDashboard, label: '대시보드' },
+  { to: '/briefing',   icon: BookOpen,        label: '오늘의 물가 브리핑' },
   { to: '/news',       icon: Newspaper,       label: '뉴스 관리' },
   { to: '/causal',     icon: GitBranch,       label: '물가 영향 분석' },
   { to: '/indicators', icon: BarChart2,       label: '경제 지표' },
