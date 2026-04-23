@@ -176,7 +176,7 @@ const styles = StyleSheet.create({
   predDivider: { height: 1, backgroundColor: '#F3F4F6' },
   predPreview: { flexDirection: 'row', alignItems: 'center', padding: 12, paddingHorizontal: 16, backgroundColor: '#F9FAFB' },
   predPreviewHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 },
-  predPreviewTag: { fontSize: 9, fontWeight: '800', color: COLORS.headerBg, textTransform: 'uppercase' },
+  predPreviewTag: { fontSize: 9, fontWeight: '800', color: COLORS.primary, textTransform: 'uppercase' },
   predPreviewText: { fontSize: 12, color: COLORS.textPrimary, fontWeight: '500' },
   predDate: { fontSize: 10, color: COLORS.textLight },
   predCountBadge: { backgroundColor: '#E5E7EB', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, marginLeft: 8 },

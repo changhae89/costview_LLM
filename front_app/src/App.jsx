@@ -170,7 +170,7 @@ export default function App() {
           style={styles.logo}
           resizeMode="contain"
         />
-        <ActivityIndicator size="large" color={COLORS.headerBg} style={{ marginTop: 20 }} />
+        <ActivityIndicator size="large" color={COLORS.primary} style={{ marginTop: 20 }} />
       </View>
     );
   }

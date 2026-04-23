@@ -48,7 +48,7 @@ export default function NewsDetailView({ item, onClose, topInset, customBackText
 
   return (
     <Animated.View style={[styles.root, { transform: [{ translateX: slideAnim }] }]}>
-      <StatusBar barStyle="light-content" backgroundColor={COLORS.headerBg} />
+      <StatusBar barStyle="dark-content" backgroundColor={COLORS.headerBg} />
       
       {/* 헤더 */}
       <View style={[styles.header, { paddingTop: topInset + 10 }]}>
@@ -154,13 +154,13 @@ const styles = StyleSheet.create({
   },
   backText: {
     fontSize: 13,
-    color: 'rgba(255,255,255,0.8)',
+    color: COLORS.textPrimary,
     fontWeight: '600',
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: COLORS.white,
+    color: COLORS.headerText,
   },
   body: {
     padding: 16,
@@ -236,7 +236,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: COLORS.headerBg,
+    backgroundColor: COLORS.primary,
     marginTop: 6,
   },
   chainLabel: {
@@ -275,7 +275,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   linkBtn: {
-    backgroundColor: COLORS.headerBg,
+    backgroundColor: COLORS.primary,
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',

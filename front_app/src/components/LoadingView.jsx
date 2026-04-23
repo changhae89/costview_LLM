@@ -6,7 +6,7 @@ export default function LoadingView({ loading, hasError, onRetry, children }) {
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color={COLORS.primary ?? '#1E3A5F'} />
+        <ActivityIndicator size="large" color={COLORS.primary} />
       </View>
     );
   }
@@ -28,6 +28,6 @@ export default function LoadingView({ loading, hasError, onRetry, children }) {
 const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingTop: 80 },
   errorText: { color: '#6B7280', fontSize: 14, marginBottom: 12 },
-  retryBtn: { backgroundColor: '#1E3A5F', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8 },
+  retryBtn: { backgroundColor: COLORS.primary, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8 },
   retryText: { color: '#FFF', fontSize: 14, fontWeight: '600' },
 });

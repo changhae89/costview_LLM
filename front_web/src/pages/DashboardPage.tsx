@@ -35,6 +35,11 @@ function KpiCard({
 }) {
   const pct = max > 0 ? Math.min(100, Math.max(4, ((value ?? 0) / max) * 100)) : 50
   const trend = trendText(value, prev)
+  const gaugeColor =
+    pct < 25 ? '#60A5FA' :
+    pct < 50 ? '#FBBF24' :
+    pct < 75 ? '#F97316' :
+               '#EF4444'
 
   return (
     <div className="rounded-lg bg-white p-4 border border-gray-100 shadow-sm transition-all hover:shadow-md hover:-translate-y-px">
@@ -47,7 +52,7 @@ function KpiCard({
         {unit && <span className="ml-1 text-sm text-gray-400">{unit}</span>}
       </p>
       <div className="mt-3 h-1.5 rounded-full bg-gray-100 overflow-hidden">
-        <div className="h-full rounded-full bg-primary-accent" style={{ width: `${pct}%` }} />
+        <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: gaugeColor }} />
       </div>
       <p className="mt-2 font-mono text-xs" style={{ color: trend.color }}>{trend.label}</p>
     </div>

@@ -1,5 +1,6 @@
 // components/FilterChips.jsx
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { COLORS } from '../constants/colors';
 
 export function Chip({ label, active, onPress }) {
   return (
@@ -35,7 +36,7 @@ const styles = StyleSheet.create({
     borderRadius: 20, borderWidth: 1,
     borderColor: '#D1D5DB', backgroundColor: '#FFF',
   },
-  chipActive: { backgroundColor: '#1E3A5F', borderColor: '#1E3A5F' },
+  chipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   chipText: { fontSize: 12, color: '#374151', fontWeight: '500' },
   chipTextActive: { color: '#FFF', fontWeight: '600' },
 });

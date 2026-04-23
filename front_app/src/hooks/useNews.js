@@ -15,18 +15,19 @@ export function useNews(filters = {}) {
 
   const [totalCount, setTotalCount] = useState(0);
 
-  const load = useCallback(async (isRefresh = false, isLoadMore = false) => {
+  const load = useCallback(async (isRefresh = false, loadPage = 0) => {
+    const isLoadMore = loadPage > 0;
     try {
       if (isRefresh) setRefreshing(true);
       else if (isLoadMore) setLoadingMore(true);
       else setLoading(true);
 
-      const offset = isLoadMore ? (page + 1) * LIMIT : 0;
+      const offset = loadPage * LIMIT;
       const { data, count } = await fetchNewsList({ offset, limit: LIMIT, query, dirFilter, catFilter, sortAsc });
 
       if (isLoadMore) {
         setNewsList(prev => [...prev, ...(data ?? [])]);
-        setPage(prev => prev + 1);
+        setPage(loadPage);
       } else {
         setNewsList(data ?? []);
         setTotalCount(count ?? 0);
@@ -41,19 +42,21 @@ export function useNews(filters = {}) {
       setRefreshing(false);
       setLoadingMore(false);
     }
-  }, [page, query, dirFilter, catFilter, sortAsc]);
+  }, [query, dirFilter, catFilter, sortAsc]);
 
   // When filters change, reset and load from scratch
   useEffect(() => { 
     setHasMore(true);
-    load(false, false); 
-  }, [query, dirFilter, catFilter, sortAsc]);
+    load(false, 0); 
+  }, [load]);
 
   const loadMore = useCallback(() => {
     if (!loadingMore && hasMore && !loading && !refreshing) {
-      load(false, true);
+      load(false, page + 1);
     }
-  }, [loadingMore, hasMore, loading, refreshing, load]);
+  }, [loadingMore, hasMore, loading, refreshing, load, page]);
 
-  return { newsList, totalCount, loading, refreshing, loadingMore, hasMore, loadMore, refetch: () => load(true, false) };
+  const refetch = useCallback(() => load(true, 0), [load]);
+
+  return { newsList, totalCount, loading, refreshing, loadingMore, hasMore, loadMore, refetch };
 }

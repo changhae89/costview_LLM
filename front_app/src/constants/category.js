@@ -29,21 +29,21 @@ export const CATEGORY_MAP = {
 };
 
 export const DIRECTION_MAP = {
-  up:      { label: '▲ 상승', color: '#D85A30', dotColor: '#D85A30' },
-  down:    { label: '▼ 하락', color: '#1D9E75', dotColor: '#1D9E75' },
-  neutral: { label: '─ 중립', color: '#111827', dotColor: '#111827' },
+  up:      { label: '▲ 상승', color: '#EF4444', dotColor: '#EF4444' },
+  down:    { label: '▼ 하락', color: '#22C55E', dotColor: '#22C55E' },
+  neutral: { label: '─ 중립', color: '#9CA3AF', dotColor: '#9CA3AF' },
 };
 
 export const MAGNITUDE_MAP = {
-  high:   { label: '강함',  dots: ['#D85A30', '#D85A30', '#D85A30'] },
-  medium: { label: '보통',  dots: ['#EF9F27', '#EF9F27', '#E5E7EB'] },
+  high:   { label: '강함',  dots: ['#EF4444', '#EF4444', '#EF4444'] },
+  medium: { label: '보통',  dots: ['#F59E0B', '#F59E0B', '#E5E7EB'] },
   low:    { label: '약함',  dots: ['#E5E7EB', '#E5E7EB', '#E5E7EB'] },
 };
 
 export function getReliabilityBadge(r) {
-  if (r >= 0.8) return { label: `${Math.round(r * 100)}%`, bg: '#FCEBEB', color: '#791F1F' };
-  if (r >= 0.5) return { label: `${Math.round(r * 100)}%`, bg: '#FAEEDA', color: '#633806' };
-  if (r >= 0.3) return { label: `${Math.round(r * 100)}%`, bg: '#F1EFE8', color: '#5F5E5A' };
+  if (r >= 0.8) return { label: `${Math.round(r * 100)}%`, bg: '#FFF7ED', color: '#EA580C' };
+  if (r >= 0.5) return { label: `${Math.round(r * 100)}%`, bg: '#FFFBEB', color: '#92400E' };
+  if (r >= 0.3) return { label: `${Math.round(r * 100)}%`, bg: '#F9FAFB', color: '#6B7280' };
   return null; // 0.3 미만 비표시
 }
 
