@@ -54,7 +54,6 @@ function toQuery(params: Record<string, unknown>) {
 
 export const dashboardApi = {
   kpi: () => apiFetch('/api/v1/dashboard/kpi').then(parseJson),
-  pipelineStats: () => apiFetch('/api/v1/dashboard/pipeline-stats').then(parseJson),
   gprTrend: (days = 30) =>
     apiFetch(`/api/v1/dashboard/gpr-trend${toQuery({ days })}`).then(parseJson),
   causalSummary: () => apiFetch('/api/v1/dashboard/causal-summary').then(parseJson),

@@ -11,41 +11,30 @@ def _rows(cur) -> list[dict]:
     return [dict(zip(cols, r)) for r in cur.fetchall()]
 
 
+def _latest_metric(cur, table: str, value_col: str) -> list[dict]:
+    cur.execute(
+        f"""
+        SELECT {value_col}, reference_date
+        FROM {table}
+        WHERE {value_col} IS NOT NULL
+        ORDER BY reference_date::date DESC
+        LIMIT 2
+        """
+    )
+    return _rows(cur)
+
+
 @router.get("/kpi")
 def get_kpi_latest():
     with get_conn() as conn:
         with conn.cursor() as cur:
-            result = {}
-            queries = {
-                "gpr": """
-                    SELECT ai_gpr_index, reference_date
-                    FROM indicator_gpr_daily_logs
-                    ORDER BY reference_date DESC
-                    LIMIT 2
-                """,
-                "ecos": """
-                    SELECT krw_usd_rate, reference_date
-                    FROM indicator_ecos_daily_logs
-                    ORDER BY reference_date DESC
-                    LIMIT 2
-                """,
-                "fred": """
-                    SELECT fred_wti, fred_treasury_10y, reference_date
-                    FROM indicator_fred_daily_logs
-                    ORDER BY reference_date DESC
-                    LIMIT 2
-                """,
-                "kosis": """
-                    SELECT cpi_total, reference_date
-                    FROM indicator_kosis_monthly_logs
-                    ORDER BY reference_date DESC
-                    LIMIT 2
-                """,
+            return {
+                "global_risk": _latest_metric(cur, "indicator_gpr_daily_logs", "ai_gpr_index"),
+                "exchange_rate": _latest_metric(cur, "indicator_ecos_daily_logs", "krw_usd_rate"),
+                "wti": _latest_metric(cur, "indicator_fred_daily_logs", "fred_wti"),
+                "cpi": _latest_metric(cur, "indicator_kosis_monthly_logs", "cpi_total"),
+                "treasury_10y": _latest_metric(cur, "indicator_fred_daily_logs", "fred_treasury_10y"),
             }
-            for key, sql in queries.items():
-                cur.execute(sql)
-                result[key] = _rows(cur)
-            return result
 
 
 @router.get("/pipeline-stats")

@@ -45,7 +45,7 @@ function GprTab({ period }: { period: Period }) {
   })
 
   return (
-    <ChartCard title="글로벌 위기 지수 (GPR)">
+    <ChartCard title="글로벌 위험지수">
       {isLoading ? <div className="h-48 flex items-center justify-center text-sm text-gray-400">로딩 중...</div> : (
         <ResponsiveContainer width="100%" height={220}>
           <LineChart data={data ?? []}>
@@ -54,8 +54,8 @@ function GprTab({ period }: { period: Period }) {
             <YAxis tick={{ fontSize: 9, fontFamily: 'DM Mono' }} width={40} />
             <Tooltip contentStyle={{ fontSize: 11, fontFamily: 'DM Mono' }} />
             <Legend wrapperStyle={{ fontSize: 11 }} />
-            <Line type="monotone" dataKey="ai_gpr_index" name="AI GPR" stroke={COLORS.primary} strokeWidth={2} dot={false} />
-            <Line type="monotone" dataKey="gpr_original" name="GPR" stroke={COLORS.neutral} strokeWidth={1.5} dot={false} strokeDasharray="4 2" />
+            <Line type="monotone" dataKey="ai_gpr_index" name="글로벌 위험지수" stroke={COLORS.primary} strokeWidth={2} dot={false} />
+            <Line type="monotone" dataKey="gpr_original" name="기존 위험지수" stroke={COLORS.neutral} strokeWidth={1.5} dot={false} strokeDasharray="4 2" />
           </LineChart>
         </ResponsiveContainer>
       )}
@@ -161,7 +161,7 @@ function KosisTab({ period }: { period: Period }) {
 
 type Tab = 'gpr' | 'ecos' | 'fred' | 'kosis'
 const TABS: { key: Tab; label: string }[] = [
-  { key: 'gpr', label: 'GPR 위기지수' },
+  { key: 'gpr', label: '글로벌 위험지수' },
   { key: 'ecos', label: '원화 환율' },
   { key: 'fred', label: 'FRED 원자재/금리' },
   { key: 'kosis', label: '한국 CPI' },
