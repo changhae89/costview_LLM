@@ -3,7 +3,7 @@
 > **작성일**: 2026-04-10  
 > **버전**: v1.0  
 > **목적**: Cursor AI가 React Native 또는 Flutter 기반으로 구현할 수 있도록 작성된 앱 화면 설계서  
-> **스택 가정**: React Native + Supabase JS Client + React Navigation (Bottom Tab)  
+> **스택 가정**: React Native + FastAPI Backend API + React Navigation (Bottom Tab)  
 > **참고 파일**: `screen_spec_for_cursor.md` (DB 스키마·쿼리·데이터 처리 규칙)
 
 ---
@@ -143,17 +143,13 @@ export function getReliabilityBadge(r: number) {
 | 바 | 높이 3px · 배경 `rgba(255,255,255,0.15)` |
 | 전일 대비 | fontSize 10 · 상승 `#FF8A7A` / 하락 `#6EE7B7` |
 
-**Supabase 쿼리**:
+**Backend API 쿼리**:
 ```typescript
 // 최신 2건으로 전일 대비 계산
-const { data } = await supabase
-  .from('indicator_daily_logs')
-  .select('ai_gpr_index, oil_disruptions, gpr_original, non_oil_gpr, reference_date')
-  .order('reference_date', { ascending: false })
-  .limit(2);
+const metrics = await fetchDashboardMetrics();
 
-const latest = data[0];
-const prev   = data[1];
+const latest = metrics.latest;
+const prev   = metrics.prev;
 const aiChange = (latest.ai_gpr_index - prev.ai_gpr_index).toFixed(1);
 ```
 
@@ -171,17 +167,9 @@ const aiChange = (latest.ai_gpr_index - prev.ai_gpr_index).toFixed(1);
 | 변동폭 | fontSize 13 · bold · direction 색상 |
 | 강도 닷 | 직경 6px 원 · 3개 · magnitude 색상 |
 
-**Supabase 쿼리**:
+**Backend API 쿼리**:
 ```typescript
-const { data } = await supabase
-  .from('causal_chains')
-  .select(`
-    category, direction, magnitude,
-    change_pct_min, change_pct_max,
-    news_analyses!inner(reliability, created_at)
-  `)
-  .neq('direction', 'neutral')
-  .gte('news_analyses.reliability', 0.3);
+const data = await fetchCausalChains();
 // 프론트에서 category별 그룹핑 후 대표 direction, 평균 변동폭 계산
 ```
 
@@ -197,17 +185,9 @@ const { data } = await supabase
 | 요약 | fontSize 11 · muted · 1줄 말줄임 |
 | 태그 | fontSize 10 · 상승 `#FCEBEB/#791F1F` · 하락 `#EAF3DE/#27500A` · 키워드 gray |
 
-**Supabase 쿼리**:
+**Backend API 쿼리**:
 ```typescript
-const { data } = await supabase
-  .from('news_analyses')
-  .select(`
-    summary, reliability,
-    raw_news:raw_news_id(title, keyword, increased_items, decreased_items)
-  `)
-  .gte('reliability', 0.3)
-  .order('created_at', { ascending: false })
-  .limit(5);
+const { data } = await fetchNewsList({ limit: 5 });
 ```
 
 ---
@@ -474,20 +454,14 @@ const SERIES = [
 // oil_disruptions는 표시 시 ÷10 처리
 ```
 
-### Supabase 쿼리
+### Backend API 쿼리
 
 ```typescript
 // 일간
-const { data: daily } = await supabase
-  .from('indicator_daily_logs')
-  .select('ai_gpr_index, oil_disruptions, gpr_original, non_oil_gpr, reference_date')
-  .order('reference_date', { ascending: true });
+const daily = await fetchUnifiedDaily();
 
-// 월간 (컬럼명 대소문자 주의)
-const { data: monthly } = await supabase
-  .from('indicator_logs')
-  .select('"AI_GPR_Index", oil_disruptions, gpr_original, non_oil_gpr, reference_date')
-  .order('reference_date', { ascending: true });
+// 월간
+const monthly = await fetchUnifiedMonthly();
 ```
 
 ### 통계 계산
@@ -649,5 +623,5 @@ export function formatRefDate(dateStr: string): string {
 
 ---
 
-*이 문서는 실제 Supabase 데이터를 기반으로 작성된 앱 화면 설계서입니다.*  
+*이 문서는 실제 백엔드 DB 데이터를 기반으로 작성된 앱 화면 설계서입니다.*  
 *DB 스키마·쿼리·처리 규칙 상세는 `screen_spec_for_cursor.md`를 참조하세요.*

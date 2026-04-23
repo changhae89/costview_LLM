@@ -1,6 +1,6 @@
 // hooks/usePredictions.js
 import { useCallback, useEffect, useState } from 'react';
-import { fetchPredictions } from '../lib/supabase';
+import { fetchPredictions } from '../lib/api';
 
 export function usePredictions() {
   const [predictions, setPredictions] = useState([]);
