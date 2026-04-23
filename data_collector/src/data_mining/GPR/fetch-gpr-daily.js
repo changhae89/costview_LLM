@@ -34,25 +34,22 @@ async function fetchDailyGPR() {
     const latest = rows[rows.length - 1];
 
     const record = {
-      category: "Economy",
-      ai_gpr_index: parseFloat(latest["GPR_AI"]), // 👈 ai_gpr_index로 변경
+      ai_gpr_index: parseFloat(latest["GPR_AI"]),
       oil_disruptions: parseFloat(latest["GPR_OIL"] || 0),
       gpr_original: parseFloat(latest["GPR_AER"] || 0),
       non_oil_gpr: parseFloat(latest["GPR_NONOIL"] || 0),
-      unit: "index",
       reference_date: latest["Date"],
-      collected_at: new Date().toISOString(),
     };
 
-    // ✅ indicator_daily_logs 테이블로 upsert
-    const { data, error } = await supabase
-      .from("indicator_daily_logs")
+    // 대시보드·API·웹은 indicator_gpr_daily_logs 만 조회함 (indicator_daily_logs 아님)
+    const { error } = await supabase
+      .from("indicator_gpr_daily_logs")
       .upsert(record, { onConflict: "reference_date" });
 
     if (error) throw error;
     console.log(`🚀 [Daily] 업데이트 성공: ${record.reference_date}`);
     console.log(
-      `📊 지수: ${record.AI_GPR_Index} / 석유리스크: ${record.oil_disruptions}`,
+      `📊 지수: ${record.ai_gpr_index} / 석유리스크: ${record.oil_disruptions}`,
     );
   } catch (error) {
     console.error("❌ 일일 데이터 수집 실패:", error.message);

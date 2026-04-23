@@ -28,21 +28,16 @@ async function seedDailyGPR() {
         console.log(`🔍 필터링된 데이터 개수: ${filteredRows.length}개`);
 
         const records = filteredRows.map(row => ({
-            category: "Economy",
             ai_gpr_index: parseFloat(row["GPR_AI"]),
             oil_disruptions: parseFloat(row["GPR_OIL"] || 0),
             gpr_original: parseFloat(row["GPR_AER"] || 0),
             non_oil_gpr: parseFloat(row["GPR_NONOIL"] || 0),
-            unit: "index",
             reference_date: row["Date"],
-            collected_at: new Date().toISOString(),
         }));
 
-        // ✅ 대량 삽입 (Upsert)
-        // 한 번에 너무 많은 데이터를 넣으면 에러가 날 수 있으니 500개씩 끊어서 넣거나, 
-        // 여기서는 3년치(약 1,100개)이므로 한 번에 시도해봅니다.
+        // 대시보드·API와 동일 테이블 (fetch-gpr-daily.js 와 맞춤)
         const { error } = await supabase
-            .from("indicator_daily_logs")
+            .from("indicator_gpr_daily_logs")
             .upsert(records, { onConflict: "reference_date" });
 
         if (error) throw error;
