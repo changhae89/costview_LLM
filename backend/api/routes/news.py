@@ -61,22 +61,50 @@ def list_raw_news(
 
 
 @router.get("/analyses")
-def list_analyses(page: int = 0, page_size: int = 50):
+def list_analyses(
+    page: int = 0,
+    page_size: int = 50,
+    search: str | None = None,
+    min_reliability: float | None = None,
+    time_horizon: str | None = None,
+    geo_scope: str | None = None,
+    korea_relevance: str | None = None,
+):
+    where = []
+    params: list[object] = []
+    if search:
+        where.append("summary ILIKE %s")
+        params.append(f"%{search}%")
+    if min_reliability is not None:
+        where.append("reliability >= %s")
+        params.append(min_reliability)
+    if time_horizon:
+        where.append("time_horizon = %s")
+        params.append(time_horizon)
+    if geo_scope:
+        where.append("geo_scope = %s")
+        params.append(geo_scope)
+    if korea_relevance:
+        where.append("korea_relevance = %s")
+        params.append(korea_relevance)
+
+    where_sql = f"WHERE {' AND '.join(where)}" if where else ""
     limit = max(1, min(page_size, 100))
     offset = max(0, page) * limit
     with get_conn() as conn:
         with conn.cursor() as cur:
-            cur.execute("SELECT COUNT(*) FROM news_analyses")
+            cur.execute(f"SELECT COUNT(*) FROM news_analyses {where_sql}", params)
             total = cur.fetchone()[0]
             cur.execute(
-                """
+                f"""
                 SELECT id, summary, reliability, time_horizon, geo_scope,
                        korea_relevance, created_at, effect_chain,
                        reliability_reason, raw_news_id
                 FROM news_analyses
+                {where_sql}
                 ORDER BY created_at DESC
                 LIMIT %s OFFSET %s
                 """,
-                (limit, offset),
+                [*params, limit, offset],
             )
             return {"data": _rows(cur), "total": total}
