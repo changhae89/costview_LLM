@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ExternalLink } from 'lucide-react'
-import { fetchRawNews, fetchAnalyses } from '../lib/supabase'
+import { newsApi } from '../lib/api'
 import { StatusBadge, ReliabilityBar } from '../components/ui/Badge'
 import { Pagination } from '../components/ui/Pagination'
 import { Drawer } from '../components/ui/Drawer'
@@ -43,7 +43,7 @@ function RawNewsTab() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['rawNews', page, filters],
-    queryFn: () => fetchRawNews(page, PAGE_SIZE, filters),
+    queryFn: () => newsApi.raw(page, PAGE_SIZE, filters),
   })
   const totalPages = Math.ceil((data?.total ?? 0) / PAGE_SIZE)
 
@@ -154,7 +154,7 @@ function AnalysesTab() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['analyses', page],
-    queryFn: () => fetchAnalyses(page, PAGE_SIZE),
+    queryFn: () => newsApi.analyses(page, PAGE_SIZE),
   })
   const totalPages = Math.ceil((data?.total ?? 0) / PAGE_SIZE)
 

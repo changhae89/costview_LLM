@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Plus, Pencil, Trash2, X } from 'lucide-react'
-import { fetchCategories } from '../lib/supabase'
 import { categoryApi } from '../lib/api'
 import { Modal, ConfirmDialog } from '../components/ui/Modal'
 
@@ -118,7 +117,7 @@ export function CategoryPage() {
   const qc = useQueryClient()
   const { data: categories = [], isLoading } = useQuery({
     queryKey: ['categories'],
-    queryFn: fetchCategories,
+    queryFn: categoryApi.list,
   })
 
   const [creating, setCreating] = useState(false)
