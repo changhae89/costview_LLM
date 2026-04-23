@@ -1,0 +1,87 @@
+name: Deploy Backend To EC2
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "backend/**"
+      - ".github/workflows/deploy-backend.yml"
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy backend over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: ${{ secrets.EC2_PORT }}
+          timeout: 120s
+          command_timeout: 30m
+          script: |
+            set -eu
+
+            APP_DIR="$HOME/costview-backend"
+            ENV_FILE="$HOME/costview-backend.env"
+            CONTAINER_NAME="costview-backend"
+            IMAGE_NAME="costview-backend:latest"
+            REPO_URL="git@github.com:${{ github.repository }}.git"
+            BRANCH_NAME="main"
+
+            echo "[1/10] Ensure app directory exists"
+            mkdir -p "$APP_DIR"
+
+            echo "[2/10] Verify required runtime files"
+            if [ ! -f "$ENV_FILE" ]; then
+              echo "Missing $ENV_FILE"
+              exit 1
+            fi
+
+            if [ ! -f "$HOME/.ssh/costview_github_deploy" ]; then
+              echo "Missing GitHub deploy key: $HOME/.ssh/costview_github_deploy"
+              exit 1
+            fi
+
+            echo "[3/10] Sync source code from private repository"
+            if [ -d "$APP_DIR/.git" ]; then
+              git -C "$APP_DIR" fetch origin "$BRANCH_NAME"
+              git -C "$APP_DIR" checkout "$BRANCH_NAME"
+              git -C "$APP_DIR" reset --hard "origin/$BRANCH_NAME"
+            else
+              rm -rf "$APP_DIR"
+              git clone --branch "$BRANCH_NAME" "$REPO_URL" "$APP_DIR"
+            fi
+
+            cd "$APP_DIR"
+
+            echo "[4/10] Show deployed commit"
+            git rev-parse --short HEAD
+
+            echo "[5/10] Remove previous backend container if it exists"
+            docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
+
+            echo "[6/10] Remove old backend image if it exists"
+            docker image rm "$IMAGE_NAME" || true
+
+            echo "[7/10] Build backend image"
+            docker build -t "$IMAGE_NAME" -f backend/Dockerfile .
+
+            echo "[8/10] Run backend container"
+            docker run -d \
+              --name "$CONTAINER_NAME" \
+              --restart unless-stopped \
+              --env-file "$ENV_FILE" \
+              -p 8000:8000 \
+              "$IMAGE_NAME"
+
+            echo "[9/10] Check backend health"
+            sleep 5
+            curl --fail http://127.0.0.1:8000/
+
+            echo "[10/10] Show backend container status"
+            docker ps --filter "name=$CONTAINER_NAME"
