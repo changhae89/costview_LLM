@@ -1,0 +1,32 @@
+name: Debug EC2 Port 80
+
+on:
+  workflow_dispatch:
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Inspect port 80 over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: ${{ secrets.EC2_PORT }}
+          timeout: 120s
+          command_timeout: 10m
+          script: |
+            set -eu
+            echo "[1/4] Port 80 listeners"
+            sudo ss -ltnp '( sport = :80 )' || true
+
+            echo "[2/4] Docker containers"
+            docker ps --format 'table {{.ID}}\t{{.Image}}\t{{.Ports}}\t{{.Names}}'
+
+            echo "[3/4] nginx status"
+            sudo systemctl status nginx --no-pager || true
+
+            echo "[4/4] apache2 status"
+            sudo systemctl status apache2 --no-pager || true
