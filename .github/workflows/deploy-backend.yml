@@ -101,6 +101,11 @@ jobs:
             }
             EOF
 
+            echo "[10.1/13] Release port 80 from any existing web service"
+            sudo systemctl stop apache2 2>/dev/null || true
+            sudo systemctl stop nginx 2>/dev/null || true
+            sudo fuser -k 80/tcp 2>/dev/null || true
+
             sudo rm -f /etc/nginx/sites-enabled/default
             sudo ln -sf "$NGINX_SITE" /etc/nginx/sites-enabled/costview-backend
             sudo nginx -t
