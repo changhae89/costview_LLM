@@ -41,7 +41,7 @@ function TabIcon({ label, focused }) {
       <Text style={[tabStyles.iconText, !focused && tabStyles.iconInactive]}>
         {icons[label] ?? '●'}
       </Text>
-      <Text 
+      <Text
         numberOfLines={1}
         adjustsFontSizeToFit
         style={[tabStyles.label, focused ? tabStyles.labelActive : tabStyles.labelInactive]}
@@ -180,8 +180,8 @@ export default function App() {
   if (!appIsReady) {
     return (
       <View style={styles.loadingContainer}>
-        <Image 
-          source={require('../logo/logo2.png')} 
+        <Image
+          source={require('../logo/logo3.png')}
           style={styles.logo}
           resizeMode="contain"
         />
@@ -304,11 +304,12 @@ const styles = StyleSheet.create({
 
 const tabStyles = StyleSheet.create({
   tabBar: {
-    height: 83,
+    height: 100,
     backgroundColor: COLORS.white,
     borderTopWidth: 0.5,
     borderTopColor: COLORS.border,
     paddingTop: 4,
+    paddingBottom: 20,
   },
   iconWrap: {
     alignItems: 'center',

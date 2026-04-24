@@ -1,0 +1,31 @@
+{
+  "cli": {
+    "version": ">= 18.8.1",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal"
+    },
+    "preview": {
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "https://ijhgmemuzeujpvdlywjn.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlqaGdtZW11emV1anB2ZGx5d2puIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2MjY4MzEsImV4cCI6MjA5MTIwMjgzMX0.BPRAtx51G0ro0QZGC3qW63c7Y1jbSzFC7CuVr6nSU7k",
+        "EXPO_PUBLIC_API_BASE_URL": "http://43.201.27.55:8443/"
+      }
+    },
+    "production": {
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "https://ijhgmemuzeujpvdlywjn.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlqaGdtZW11emV1anB2ZGx5d2puIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2MjY4MzEsImV4cCI6MjA5MTIwMjgzMX0.BPRAtx51G0ro0QZGC3qW63c7Y1jbSzFC7CuVr6nSU7k",
+        "EXPO_PUBLIC_API_BASE_URL": "http://43.201.27.55:8443/"
+      }
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}

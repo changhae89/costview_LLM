@@ -245,7 +245,7 @@ def list_news(
                 LEFT JOIN causal_chains cc ON cc.news_analysis_id = na.id
                 WHERE {where_sql}
                 GROUP BY na.id, rn.id
-                ORDER BY na.created_at {order_sql}
+                ORDER BY COALESCE(rn.origin_published_at, na.created_at) {order_sql}
                 LIMIT %s OFFSET %s
                 """,
                 [*params, safe_limit, safe_offset],
@@ -312,11 +312,11 @@ def list_predictions():
 
     result = []
     for item in grouped.values():
-        item["news_analyses"].sort(key=lambda n: str(n.get("created_at") or ""), reverse=True)
+        item["news_analyses"].sort(key=lambda n: str((n.get("raw_news") or {}).get("origin_published_at") or n.get("created_at") or ""), reverse=True)
         result.append(item)
     return sorted(
         result,
-        key=lambda item: str((item.get("news_analyses") or [{}])[0].get("created_at") or ""),
+        key=lambda item: str(((item.get("news_analyses") or [{}])[0].get("raw_news") or {}).get("origin_published_at") or (item.get("news_analyses") or [{}])[0].get("created_at") or ""),
         reverse=True,
     )
 

@@ -7,7 +7,7 @@
     "userInterfaceStyle": "light",
     "scheme": "costview",
     "splash": {
-      "image": "./logo/logo2.png",
+      "image": "./logo/logo3.png",
       "resizeMode": "cover",
       "backgroundColor": "#ffffff"
     },
@@ -24,7 +24,20 @@
       "bundler": "metro"
     },
     "plugins": [
-      "expo-font"
-    ]
+      "expo-font",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "e481fa49-cce4-493b-969f-a14a5853e09d"
+      }
+    }
   }
 }
