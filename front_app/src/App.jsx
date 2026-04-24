@@ -181,7 +181,7 @@ export default function App() {
     return (
       <View style={styles.loadingContainer}>
         <Image 
-          source={require('../logo/logo1.png')} 
+          source={require('../logo/logo2.png')} 
           style={styles.logo}
           resizeMode="contain"
         />
