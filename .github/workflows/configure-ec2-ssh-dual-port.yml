@@ -22,29 +22,21 @@ jobs:
 
             CONFIG_FILE="/etc/ssh/sshd_config"
             BACKUP_FILE="/etc/ssh/sshd_config.bak_codex_$(date +%Y%m%d%H%M%S)"
+            DROPIN_DIR="/etc/ssh/sshd_config.d"
+            DROPIN_FILE="$DROPIN_DIR/99-codex-ports.conf"
 
             echo "[1/5] Backup sshd config"
             sudo cp "$CONFIG_FILE" "$BACKUP_FILE"
 
-            echo "[2/5] Ensure Port 80 and Port 2222 are both present"
-            sudo python3 - <<'PY'
-            from pathlib import Path
-
-            path = Path("/etc/ssh/sshd_config")
-            lines = path.read_text().splitlines()
-            kept = []
-            for line in lines:
-                stripped = line.strip()
-                if stripped.startswith("Port "):
-                    continue
-                kept.append(line)
-
-            port_block = ["Port 80", "Port 2222"]
-            path.write_text("\n".join(port_block + kept) + "\n")
-            PY
+            echo "[2/5] Add a drop-in SSH port config for 80 and 2222"
+            sudo mkdir -p "$DROPIN_DIR"
+            sudo tee "$DROPIN_FILE" >/dev/null <<'EOF'
+            Port 80
+            Port 2222
+            EOF
 
             echo "[3/5] Validate sshd config"
-            sudo sshd -t
+            sudo sshd -t -f "$CONFIG_FILE"
 
             echo "[4/5] Restart ssh service"
             sudo systemctl restart ssh
