@@ -90,8 +90,13 @@ export default function SettingsScreen({
       setStatusMessage('로그인 성공');
     } catch (err) {
       console.error('[login error]', err);
-      Alert.alert('로그인 실패', err?.message ?? '알 수 없는 오류가 발생했습니다.');
+      const msg = err?.message ?? '';
+      const userMessage = msg.toLowerCase().includes('invalid login credentials')
+        ? '이메일 또는 비밀번호가 올바르지 않습니다.'
+        : msg || '알 수 없는 오류가 발생했습니다.';
+      Alert.alert('로그인 실패', userMessage);
       setStatusMessage('로그인 실패');
+
     } finally {
       setIsSubmitting(false);
     }

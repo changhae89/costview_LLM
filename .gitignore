@@ -4,6 +4,7 @@ proposal/.env
 prd/validation/.env
 .review/
 .venv/
+venv/
 node_modules/
 temp/
 .pytest_cache/
