@@ -84,11 +84,11 @@ jobs:
             sudo apt-get update
             sudo apt-get install -y nginx
 
-            echo "[10/13] Configure nginx reverse proxy on port 443"
+            echo "[10/13] Configure nginx reverse proxy on port 8443"
             sudo tee "$NGINX_SITE" >/dev/null <<'EOF'
             server {
-              listen 443 default_server;
-              listen [::]:443 default_server;
+              listen 8443 default_server;
+              listen [::]:8443 default_server;
               server_name _;
 
               location / {
@@ -102,10 +102,10 @@ jobs:
             }
             EOF
 
-            echo "[10.1/13] Release port 443 from any existing web service"
+            echo "[10.1/13] Release port 8443 from any existing web service"
             sudo systemctl stop apache2 2>/dev/null || true
             sudo systemctl stop nginx 2>/dev/null || true
-            sudo fuser -k 443/tcp 2>/dev/null || true
+            sudo fuser -k 8443/tcp 2>/dev/null || true
 
             sudo rm -f /etc/nginx/sites-enabled/default
             sudo ln -sf "$NGINX_SITE" /etc/nginx/sites-enabled/costview-backend
@@ -116,8 +116,8 @@ jobs:
             sleep 5
             curl --fail http://127.0.0.1:8000/
 
-            echo "[12/13] Check nginx proxy health on port 443"
-            curl --fail http://127.0.0.1:443/
+            echo "[12/13] Check nginx proxy health on port 8443"
+            curl --fail http://127.0.0.1:8443/
 
             echo "[13/13] Show backend container status"
             docker ps --filter "name=$CONTAINER_NAME"
