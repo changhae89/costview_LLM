@@ -1,0 +1,53 @@
+name: Configure EC2 SSH Dual Port
+
+on:
+  workflow_dispatch:
+
+jobs:
+  configure:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Enable SSH on port 2222 while keeping current port
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: ${{ secrets.EC2_PORT }}
+          timeout: 120s
+          command_timeout: 10m
+          script: |
+            set -eu
+
+            CONFIG_FILE="/etc/ssh/sshd_config"
+            BACKUP_FILE="/etc/ssh/sshd_config.bak_codex_$(date +%Y%m%d%H%M%S)"
+
+            echo "[1/5] Backup sshd config"
+            sudo cp "$CONFIG_FILE" "$BACKUP_FILE"
+
+            echo "[2/5] Ensure Port 80 and Port 2222 are both present"
+            sudo python3 - <<'PY'
+            from pathlib import Path
+
+            path = Path("/etc/ssh/sshd_config")
+            lines = path.read_text().splitlines()
+            kept = []
+            for line in lines:
+                stripped = line.strip()
+                if stripped.startswith("Port "):
+                    continue
+                kept.append(line)
+
+            port_block = ["Port 80", "Port 2222"]
+            path.write_text("\n".join(port_block + kept) + "\n")
+            PY
+
+            echo "[3/5] Validate sshd config"
+            sudo sshd -t
+
+            echo "[4/5] Restart ssh service"
+            sudo systemctl restart ssh
+
+            echo "[5/5] Show listening SSH ports"
+            sudo ss -ltnp | grep sshd || true
