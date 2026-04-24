@@ -32,11 +32,12 @@ jobs:
             IMAGE_NAME="costview-backend:latest"
             REPO_URL="git@github.com:${{ github.repository }}.git"
             BRANCH_NAME="main"
+            NGINX_SITE="/etc/nginx/sites-available/costview-backend"
 
-            echo "[1/10] Ensure app directory exists"
+            echo "[1/13] Ensure app directory exists"
             mkdir -p "$APP_DIR"
 
-            echo "[2/10] Verify required runtime files"
+            echo "[2/13] Verify required runtime files"
             if [ ! -f "$ENV_FILE" ]; then
               echo "Missing $ENV_FILE"
               exit 1
@@ -47,7 +48,7 @@ jobs:
               exit 1
             fi
 
-            echo "[3/10] Sync source code from private repository"
+            echo "[3/13] Sync source code from private repository"
             if [ -d "$APP_DIR/.git" ]; then
               git -C "$APP_DIR" fetch origin "$BRANCH_NAME"
               git -C "$APP_DIR" checkout "$BRANCH_NAME"
@@ -59,19 +60,19 @@ jobs:
 
             cd "$APP_DIR"
 
-            echo "[4/10] Show deployed commit"
+            echo "[4/13] Show deployed commit"
             git rev-parse --short HEAD
 
-            echo "[5/10] Remove previous backend container if it exists"
+            echo "[5/13] Remove previous backend container if it exists"
             docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
 
-            echo "[6/10] Remove old backend image if it exists"
+            echo "[6/13] Remove old backend image if it exists"
             docker image rm "$IMAGE_NAME" || true
 
-            echo "[7/10] Build backend image"
+            echo "[7/13] Build backend image"
             docker build -t "$IMAGE_NAME" -f backend/Dockerfile .
 
-            echo "[8/10] Run backend container"
+            echo "[8/13] Run backend container"
             docker run -d \
               --name "$CONTAINER_NAME" \
               --restart unless-stopped \
@@ -79,9 +80,38 @@ jobs:
               -p 8000:8000 \
               "$IMAGE_NAME"
 
-            echo "[9/10] Check backend health"
+            echo "[9/13] Ensure nginx is installed"
+            sudo apt-get update
+            sudo apt-get install -y nginx
+
+            echo "[10/13] Configure nginx reverse proxy on port 80"
+            sudo tee "$NGINX_SITE" >/dev/null <<'EOF'
+            server {
+              listen 80;
+              server_name _;
+
+              location / {
+                proxy_pass http://127.0.0.1:8000;
+                proxy_http_version 1.1;
+                proxy_set_header Host $host;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Proto $scheme;
+              }
+            }
+            EOF
+
+            sudo rm -f /etc/nginx/sites-enabled/default
+            sudo ln -sf "$NGINX_SITE" /etc/nginx/sites-enabled/costview-backend
+            sudo nginx -t
+            sudo systemctl restart nginx
+
+            echo "[11/13] Check backend health on localhost"
             sleep 5
             curl --fail http://127.0.0.1:8000/
 
-            echo "[10/10] Show backend container status"
+            echo "[12/13] Check nginx proxy health on port 80"
+            curl --fail http://127.0.0.1/
+
+            echo "[13/13] Show backend container status"
             docker ps --filter "name=$CONTAINER_NAME"
