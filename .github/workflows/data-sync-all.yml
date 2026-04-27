@@ -61,9 +61,9 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
 
-      - name: "[Daily] War News Fetch"
+      - name: "[Daily] Exa Search Fetch"
         continue-on-error: true
-        run: python src/data_mining/fetch_war_news.py
+        run: python src/data_mining/exa_search.py
         env:
           EXA_API_KEY: ${{ secrets.EXA_API_KEY }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}

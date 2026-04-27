@@ -208,7 +208,12 @@ export default function DashboardScreen() {
         grouped[c.category].news_count += 1;
       }
     });
-    return Object.values(grouped);
+    return Object.values(grouped).sort((a, b) => {
+      const order = { 'up': 1, 'down': 2, 'neutral': 3 };
+      const dirA = order[a.direction] || 4;
+      const dirB = order[b.direction] || 4;
+      return dirA - dirB;
+    });
   }, [rawChains]);
 
   const news = useMemo(() => newsList.slice(0, 5), [newsList]);

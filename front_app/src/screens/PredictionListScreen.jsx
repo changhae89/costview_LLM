@@ -12,8 +12,7 @@ import PredictionDetailView from '../components/PredictionDetailView';
 
 const FILTER_CHIPS = [
   { label: '전체', value: '', type: 'all' },
-  { label: '▲ 상승', value: 'up', type: 'dir' },
-  { label: '▼ 하락', value: 'down', type: 'dir' },
+  { type: 'dir_toggle' },
   { label: '연료·에너지', value: 'fuel', type: 'cat' },
   { label: '교통·여행', value: 'travel', type: 'cat' },
   { label: '전기·가스', value: 'utility', type: 'cat' },
@@ -72,9 +71,31 @@ export default function PredictionListScreen() {
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
           {FILTER_CHIPS.map(c => {
-            const active = c.type === 'all' ? isAllActive
-              : c.type === 'dir' ? dirFilter === c.value
-              : catFilter === c.value;
+            if (c.type === 'dir_toggle') {
+              let label = '⇅ 방향 필터';
+              let active = false;
+              if (dirFilter === 'up') {
+                label = '▲ 상승 (클릭 시 하락)';
+                active = true;
+              } else if (dirFilter === 'down') {
+                label = '▼ 하락 (클릭 시 상승)';
+                active = true;
+              }
+              return (
+                <Chip
+                  key="dir_toggle"
+                  label={label}
+                  active={active}
+                  onPress={() => {
+                    if (!dirFilter) setDirFilter('up');
+                    else if (dirFilter === 'up') setDirFilter('down');
+                    else setDirFilter('up');
+                  }}
+                />
+              );
+            }
+
+            const active = c.type === 'all' ? isAllActive : catFilter === c.value;
             return (
               <Chip
                 key={c.value + c.type}
@@ -82,7 +103,6 @@ export default function PredictionListScreen() {
                 active={active}
                 onPress={() => {
                   if (c.type === 'all') { setDirFilter(''); setCatFilter(''); }
-                  else if (c.type === 'dir') setDirFilter(dirFilter === c.value ? '' : c.value);
                   else setCatFilter(catFilter === c.value ? '' : c.value);
                 }}
               />
