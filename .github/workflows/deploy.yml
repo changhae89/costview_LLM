@@ -2,7 +2,8 @@ name: Run PRD Batch On EC2
 
 on:
   schedule:
-    - cron: '0 0 * * *'  # KST 09:00
+    - cron: '30 23 * * *' # KST 08:30 (UTC 23:30)
+    - cron: '30 11 * * *' # KST 20:30 (UTC 11:30)
   workflow_dispatch:
 
 jobs:
