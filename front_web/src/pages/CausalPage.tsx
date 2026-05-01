@@ -174,6 +174,7 @@ export function CausalPage() {
                 <th className="px-4 py-2.5 text-right font-medium w-20">지갑%</th>
                 <th className="px-4 py-2.5 text-center font-medium w-16">전달</th>
                 <th className="px-4 py-2.5 text-center font-medium w-14">단계</th>
+                <th className="px-4 py-2.5 text-left font-medium w-28">뉴스 발행일</th>
                 <th className="px-4 py-2.5 text-left font-medium w-28">신뢰도</th>
               </tr>
             </thead>
@@ -200,6 +201,9 @@ export function CausalPage() {
                     <td className="px-4 py-3 text-center font-mono text-xs text-gray-500">{row.transmission_time_months as number}개월</td>
                     <td className="px-4 py-3 text-center font-mono text-xs text-gray-500">
                       {Array.isArray(row.logic_steps) ? row.logic_steps.length : 0}단계
+                    </td>
+                    <td className="px-4 py-3 text-xs text-gray-500">
+                      {row.origin_published_at ? formatDate(row.origin_published_at as string) : '-'}
                     </td>
                     <td className="px-4 py-3">
                       {analysis && <ReliabilityBar value={analysis.reliability as number} />}
@@ -246,6 +250,10 @@ export function CausalPage() {
               </div>
             )}
             <div className="grid grid-cols-2 gap-3">
+              <div>
+                <p className="text-xs text-gray-400 mb-1">뉴스 발행일</p>
+                <p className="font-semibold text-gray-900">{formatDate(selected.origin_published_at as string)}</p>
+              </div>
               <div>
                 <p className="text-xs text-gray-400 mb-1">충격 요인</p>
                 <div className="flex flex-wrap gap-1">
