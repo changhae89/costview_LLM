@@ -50,6 +50,7 @@ def list_causal_chains(
                   cc.raw_shock_percent, cc.wallet_hit_percent, cc.transmission_time_months,
                   cc.mechanism, cc.logic_steps, cc.raw_shock_factors,
                   cc.wallet_hit_factors, cc.transmission_rationale,
+                  rn.origin_published_at::text AS origin_published_at,
                   json_build_object(
                     'id', na.id,
                     'reliability', na.reliability,
@@ -58,6 +59,7 @@ def list_causal_chains(
                   ) AS news_analyses
                 FROM causal_chains cc
                 INNER JOIN news_analyses na ON na.id = cc.news_analysis_id
+                LEFT JOIN raw_news rn ON rn.id = na.raw_news_id
                 {where_sql}
                 ORDER BY cc.id DESC
                 LIMIT %s OFFSET %s

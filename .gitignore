@@ -21,3 +21,9 @@ front_app/.expo/
 .cursor/*
 !.cursor/rules/
 !.cursor/rules/**
+
+
+*.env*
+check_db_connection.py
+diagnose_db.py
+test_db_conn.py
